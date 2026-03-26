@@ -1,0 +1,13 @@
+.DS_Store
+
+node_modules/
+.env
+.env.local
+
+.playwright-cli/
+output/
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*

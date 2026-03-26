@@ -1,0 +1,12 @@
+{
+  "name": "zm-studio-workspace",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node server.mjs"
+  },
+  "dependencies": {
+    "openai": "^6.33.0"
+  }
+}

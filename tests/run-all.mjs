@@ -4,6 +4,7 @@ import process from "node:process";
 
 const checks = [
   ["node", ["tests/verify-splash-page.mjs"]],
+  ["node", ["tests/verify-encoded-splash-route.mjs"]],
   ["node", ["tests/verify-222.mjs"]],
   ["node", ["tests/verify-workspace-page.mjs"]],
   ["node", ["tests/verify-web-app-shell.mjs"]],

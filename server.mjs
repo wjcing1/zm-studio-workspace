@@ -77,7 +77,15 @@ function sendText(response, statusCode, body) {
 
 function safeFilePath(requestPath) {
   const pathname = requestPath === "/" ? "/index.html" : requestPath;
-  const resolvedPath = path.resolve(ROOT_DIR, `.${pathname}`);
+  let decodedPathname = pathname;
+
+  try {
+    decodedPathname = decodeURIComponent(pathname);
+  } catch {
+    throw new Error("Invalid path");
+  }
+
+  const resolvedPath = path.resolve(ROOT_DIR, `.${decodedPathname}`);
   const resolvedRoot = path.resolve(ROOT_DIR);
 
   if (!resolvedPath.startsWith(resolvedRoot)) {

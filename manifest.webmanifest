@@ -1,0 +1,18 @@
+{
+  "name": "ZM Studio Workspace",
+  "short_name": "ZM Studio",
+  "description": "Internal design studio workspace for projects, assets, and canvas navigation.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#050505",
+  "theme_color": "#050505",
+  "icons": [
+    {
+      "src": "/icons/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

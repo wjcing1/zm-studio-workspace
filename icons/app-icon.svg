@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">ZM Studio App Icon</title>
+  <desc id="desc">Black rounded square with white ZM Studio mark.</desc>
+  <rect width="512" height="512" rx="120" fill="#050505" />
+  <rect x="44" y="44" width="424" height="424" rx="104" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="10" />
+  <path d="M140 160h232v32L198 344h174v40H132v-32l174-152H140z" fill="#f5f5f5" />
+  <path d="M156 118h36l64 92 64-92h36v276h-40V184l-60 84-60-84v210h-40z" fill="#bdbdbd" />
+</svg>

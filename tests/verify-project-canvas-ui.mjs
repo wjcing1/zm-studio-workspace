@@ -3,11 +3,13 @@ import path from "node:path";
 import process from "node:process";
 
 async function main() {
-  const htmlPath = path.join(process.cwd(), "222.html");
-  const appPath = path.join(process.cwd(), "app.js");
-  const [htmlSource, appSource] = await Promise.all([
+  const htmlPath = path.join(process.cwd(), "workspace.html");
+  const appPath = path.join(process.cwd(), "scripts", "workspace-page.js");
+  const projectsPath = path.join(process.cwd(), "scripts", "projects-page.js");
+  const [htmlSource, appSource, projectsSource] = await Promise.all([
     readFile(htmlPath, "utf8"),
     readFile(appPath, "utf8"),
+    readFile(projectsPath, "utf8"),
   ]);
 
   const checks = [
@@ -24,12 +26,16 @@ async function main() {
       message: "Canvas view should expose an SVG connection layer.",
     },
     {
-      ok: appSource.includes("data-project-id"),
-      message: "Project rows should render data-project-id hooks for navigation.",
+      ok: projectsSource.includes("data-project-id"),
+      message: "Projects page logic should render data-project-id hooks for navigation.",
     },
     {
       ok: appSource.includes("openProjectCanvas"),
       message: "App logic should define project-to-canvas navigation behavior.",
+    },
+    {
+      ok: htmlSource.includes('href="./projects.html"'),
+      message: "Workspace page should link to the dedicated projects page.",
     },
   ];
 
@@ -42,7 +48,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log("PASS: Project canvas UI markers are present.");
+  console.log("PASS: Workspace canvas UI markers are present.");
 }
 
 main().catch((error) => {

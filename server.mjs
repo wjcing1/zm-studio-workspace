@@ -50,6 +50,7 @@ const MIME_TYPES = {
   ".js": "text/javascript; charset=utf-8",
   ".mjs": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
+  ".webmanifest": "application/manifest+json; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".png": "image/png",
   ".jpg": "image/jpeg",
@@ -270,7 +271,7 @@ const server = http.createServer(async (request, response) => {
   sendText(response, 405, "Method Not Allowed");
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, "0.0.0.0", () => {
   console.log(`ZM Studio server running at http://127.0.0.1:${PORT}`);
 });
 

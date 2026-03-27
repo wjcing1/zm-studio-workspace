@@ -3,7 +3,7 @@ import path from "node:path";
 import process from "node:process";
 
 async function main() {
-  const htmlPath = path.join(process.cwd(), "222.html");
+  const htmlPath = path.join(process.cwd(), "assets.html");
   const source = await readFile(htmlPath, "utf8");
 
   const checks = [
@@ -30,6 +30,10 @@ async function main() {
     {
       ok: source.includes("data-starter-prompt"),
       message: "Assistant panel should include suggested starter prompts.",
+    },
+    {
+      ok: source.includes('src="./scripts/assets-page.js"'),
+      message: "Assets page should load the page-specific assets script.",
     },
   ];
 

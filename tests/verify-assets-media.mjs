@@ -4,7 +4,7 @@ import process from "node:process";
 const CODEX_HOME = process.env.CODEX_HOME || `${process.env.HOME}/.codex`;
 const PWCLI = `${CODEX_HOME}/skills/playwright/scripts/playwright_cli.sh`;
 const SESSION = `verify_assets_media_${process.pid}`;
-const PAGE_URL = "http://127.0.0.1:4173/222.html";
+const PAGE_URL = "http://127.0.0.1:4173/assets.html";
 
 function runPw(args) {
   return execFileSync(PWCLI, [`-s=${SESSION}`, ...args], {
@@ -28,7 +28,6 @@ try {
   const result = runPw([
     "eval",
     `() => {
-      document.querySelector('[data-view-target="assets"]').click();
       return Array.from(document.querySelectorAll('.asset-card img')).map((img, index) => ({
         index,
         alt: img.alt,

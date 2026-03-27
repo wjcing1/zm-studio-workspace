@@ -10,15 +10,15 @@ async function main() {
   const checks = [
     {
       ok: trimmed.startsWith("<!DOCTYPE html>"),
-      message: "222.html must start as a real HTML document with <!DOCTYPE html>.",
+      message: "222.html redirect shim must start as a real HTML document with <!DOCTYPE html>.",
     },
     {
-      ok: !trimmed.startsWith("import React"),
-      message: "222.html must not begin with raw React/JSX source.",
+      ok: source.includes('url=./workspace.html'),
+      message: "222.html should redirect legacy links into workspace.html.",
     },
     {
-      ok: source.includes('data-page="zm-studio"'),
-      message: '222.html must expose the final app shell marker `data-page="zm-studio"`.',
+      ok: source.includes('href="./workspace.html"'),
+      message: "222.html should provide a clickable fallback link to workspace.html.",
     },
   ];
 
@@ -31,7 +31,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log("PASS: 222.html is a runnable standalone page.");
+  console.log("PASS: 222.html is a legacy redirect shim.");
 }
 
 main().catch((error) => {

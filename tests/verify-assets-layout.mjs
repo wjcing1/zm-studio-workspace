@@ -4,7 +4,7 @@ import process from "node:process";
 const CODEX_HOME = process.env.CODEX_HOME || `${process.env.HOME}/.codex`;
 const PWCLI = `${CODEX_HOME}/skills/playwright/scripts/playwright_cli.sh`;
 const SESSION = `verify_assets_layout_${process.pid}`;
-const PAGE_URL = "http://127.0.0.1:4173/222.html";
+const PAGE_URL = "http://127.0.0.1:4173/assets.html";
 const MIN_CARD_HEIGHT = 160;
 
 function runPw(args) {
@@ -29,7 +29,6 @@ try {
   const result = runPw([
     "eval",
     `() => {
-      document.querySelector('[data-view-target="assets"]').click();
       return Array.from(document.querySelectorAll('.asset-card')).map((node, index) => ({
         index,
         title: node.querySelector('.asset-title')?.textContent?.trim() || \`card-\${index}\`,

@@ -4,8 +4,8 @@ import process from "node:process";
 
 async function main() {
   const [htmlSource, appSource, dataSource] = await Promise.all([
-    readFile(path.join(process.cwd(), "222.html"), "utf8"),
-    readFile(path.join(process.cwd(), "app.js"), "utf8"),
+    readFile(path.join(process.cwd(), "workspace.html"), "utf8"),
+    readFile(path.join(process.cwd(), "scripts", "workspace-page.js"), "utf8"),
     readFile(path.join(process.cwd(), "studio-data.mjs"), "utf8"),
   ]);
 

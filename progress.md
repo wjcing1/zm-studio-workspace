@@ -4,118 +4,120 @@
 
 ### Phase 1: Requirements & Discovery
 - **Status:** complete
-- **Started:** 2026-03-26
 - Actions taken:
-  - Inspected the workspace structure
-  - Identified that `222.html` is React/JSX source rather than runnable HTML
-  - Read debugging, planning, TDD, and verification skills to guide the work
-  - Started a local HTTP server on port `4173`
-  - Opened `222.html` in a real browser and confirmed it renders raw source text instead of the intended UI
+  - Confirmed the product direction shifted from a local demo page to a deployable Web App for employee use over the public internet
+  - Confirmed the user wants the legacy `222.html` naming removed
+  - Audited the current structure and found the app is still a monolithic HTML shell with one large client script
+  - Verified the project still lacks `manifest`, `service worker`, and install-related metadata
 - Files created/modified:
-  - `/Users/jiachenwang/Desktop/ai工作室/task_plan.md` (created)
-  - `/Users/jiachenwang/Desktop/ai工作室/findings.md` (created)
-  - `/Users/jiachenwang/Desktop/ai工作室/progress.md` (created)
+  - `/Users/jiachenwang/Desktop/ai工作室/task_plan.md` (rewritten)
+  - `/Users/jiachenwang/Desktop/ai工作室/findings.md` (rewritten)
+  - `/Users/jiachenwang/Desktop/ai工作室/progress.md` (rewritten)
 
 ### Phase 2: Planning & Structure
 - **Status:** complete
 - Actions taken:
-  - Chose a self-contained static implementation instead of introducing a React build pipeline
-  - Added an automated verification script for the final HTML shell requirements
-- Files created/modified:
-  - `/Users/jiachenwang/Desktop/ai工作室/tests/verify-222.mjs` (created)
-
-### Phase 3: Implementation
-- **Status:** complete
-- Actions taken:
-  - Replaced the source-only `222.html` file with a runnable standalone page
-  - Implemented the three target sections: canvas, projects ledger, and digital assets
-  - Added panning, zooming, draggable nodes, and double-click note creation to the canvas
-  - Added a redirecting `index.html` so the server root opens the final page
-- Files created/modified:
-  - `/Users/jiachenwang/Desktop/ai工作室/222.html` (rewritten)
-  - `/Users/jiachenwang/Desktop/ai工作室/index.html` (created)
-
-### Phase 4: Testing & Verification
-- **Status:** complete
-- Actions taken:
-  - Ran the automated verification script before and after the rewrite
-  - Verified both `/` and `/222.html` return HTTP 200 from the local server
-  - Re-opened the page in a real browser and confirmed the final UI renders without console errors
-- Files created/modified:
-  - `/Users/jiachenwang/Desktop/ai工作室/progress.md` (updated)
-
-### Phase 5: Delivery
-- **Status:** complete
-- Actions taken:
-  - Prepared the final local URLs and verification summary for handoff
-  - Investigated and fixed the `Digital Assets` page layout issue reported after delivery
-  - Added targeted verification for asset card layout and media loading
-  - Designed and implemented a server-backed AI chat sidebar for the `Digital Assets` page
-  - Added shared portfolio data, a Node server, OpenAI backend integration, and chat-specific verification
-  - Replaced the temporary Python static server with the new Node app server on port `4173`
-  - Linked each project row to a dedicated project canvas while keeping a studio overview canvas
-  - Added canvas header context, breadcrumb navigation, project metadata chips, SVG node connections, and per-board local persistence
-  - Extended the canvas data model so each project owns its own board definition
+  - Chose `workspace.html` as the new primary page name for the renamed `222.html`
+  - Chose a three-page structure: `workspace.html`, `projects.html`, and `assets.html`
+  - Decided to add shared styles and shared modules rather than clone logic into each page
+  - Decided to keep the existing Node server and add Web App shell files instead of switching frameworks
 - Files created/modified:
   - `/Users/jiachenwang/Desktop/ai工作室/task_plan.md` (updated)
   - `/Users/jiachenwang/Desktop/ai工作室/findings.md` (updated)
   - `/Users/jiachenwang/Desktop/ai工作室/progress.md` (updated)
-  - `/Users/jiachenwang/Desktop/ai工作室/222.html` (updated)
-  - `/Users/jiachenwang/Desktop/ai工作室/tests/verify-assets-layout.mjs` (created)
-  - `/Users/jiachenwang/Desktop/ai工作室/tests/verify-assets-media.mjs` (created)
-  - `/Users/jiachenwang/Desktop/ai工作室/app.js` (created)
-  - `/Users/jiachenwang/Desktop/ai工作室/server.mjs` (created)
-  - `/Users/jiachenwang/Desktop/ai工作室/studio-data.mjs` (created)
-  - `/Users/jiachenwang/Desktop/ai工作室/package.json` (created)
-  - `/Users/jiachenwang/Desktop/ai工作室/package-lock.json` (created by install)
-  - `/Users/jiachenwang/Desktop/ai工作室/.env.example` (created)
-  - `/Users/jiachenwang/Desktop/ai工作室/tests/verify-chat-ui.mjs` (created)
-  - `/Users/jiachenwang/Desktop/ai工作室/tests/verify-chat-api.mjs` (created)
-  - `/Users/jiachenwang/Desktop/ai工作室/tests/verify-project-canvas-ui.mjs` (created)
-  - `/Users/jiachenwang/Desktop/ai工作室/tests/verify-project-canvas-navigation.mjs` (created)
-  - `/Users/jiachenwang/Desktop/ai工作室/docs/plans/2026-03-26-assets-ai-chat-design.md` (created)
-  - `/Users/jiachenwang/Desktop/ai工作室/docs/plans/2026-03-26-assets-ai-chat.md` (created)
-  - `/Users/jiachenwang/Desktop/ai工作室/docs/plans/2026-03-26-project-linked-canvas-design.md` (created)
-  - `/Users/jiachenwang/Desktop/ai工作室/docs/plans/2026-03-26-project-linked-canvas.md` (created)
+
+### Phase 3: Implementation
+- **Status:** complete
+- Actions taken:
+  - Added shared styles, page-specific styles, shared data utilities, and Web App registration helpers
+  - Split the monolithic page into `workspace.html`, `projects.html`, and `assets.html`
+  - Renamed the old main route by turning `222.html` into a compatibility redirect shim
+  - Updated the splash screen to target `workspace.html`
+  - Added `manifest.webmanifest`, `sw.js`, an app icon, and a shared `npm test` runner
+- Files created/modified:
+  - `/Users/jiachenwang/Desktop/ai工作室/workspace.html` (created)
+  - `/Users/jiachenwang/Desktop/ai工作室/projects.html` (created)
+  - `/Users/jiachenwang/Desktop/ai工作室/assets.html` (created)
+  - `/Users/jiachenwang/Desktop/ai工作室/styles/shared.css` (created)
+  - `/Users/jiachenwang/Desktop/ai工作室/styles/workspace.css` (created)
+  - `/Users/jiachenwang/Desktop/ai工作室/styles/projects.css` (created)
+  - `/Users/jiachenwang/Desktop/ai工作室/styles/assets.css` (created)
+  - `/Users/jiachenwang/Desktop/ai工作室/styles/splash.css` (created)
+  - `/Users/jiachenwang/Desktop/ai工作室/scripts/shared/studio-data-client.js` (created)
+  - `/Users/jiachenwang/Desktop/ai工作室/scripts/shared/register-web-app.js` (created)
+  - `/Users/jiachenwang/Desktop/ai工作室/scripts/workspace-page.js` (created)
+  - `/Users/jiachenwang/Desktop/ai工作室/scripts/projects-page.js` (created)
+  - `/Users/jiachenwang/Desktop/ai工作室/scripts/assets-page.js` (created)
+  - `/Users/jiachenwang/Desktop/ai工作室/manifest.webmanifest` (created)
+  - `/Users/jiachenwang/Desktop/ai工作室/sw.js` (created)
+  - `/Users/jiachenwang/Desktop/ai工作室/icons/app-icon.svg` (created)
+  - `/Users/jiachenwang/Desktop/ai工作室/222.html` (rewritten)
+  - `/Users/jiachenwang/Desktop/ai工作室/开屏动画.html` (rewritten)
+  - `/Users/jiachenwang/Desktop/ai工作室/splash.js` (updated)
+  - `/Users/jiachenwang/Desktop/ai工作室/server.mjs` (updated)
+  - `/Users/jiachenwang/Desktop/ai工作室/package.json` (updated)
+  - `/Users/jiachenwang/Desktop/ai工作室/tests/run-all.mjs` (created)
+  - `/Users/jiachenwang/Desktop/ai工作室/app.js` (removed)
+
+### Phase 4: Testing & Verification
+- **Status:** complete
+- Actions taken:
+  - Ran syntax checks on the new client modules
+  - Verified splash flow, workspace shell, Web App shell, API contract, assets layout/media, and project canvas route
+  - Replaced one flaky Playwright verification with a stable Chrome headless DOM check
+- Files created/modified:
+  - `/Users/jiachenwang/Desktop/ai工作室/tests/verify-splash-page.mjs` (updated)
+  - `/Users/jiachenwang/Desktop/ai工作室/tests/verify-222.mjs` (updated)
+  - `/Users/jiachenwang/Desktop/ai工作室/tests/verify-workspace-page.mjs` (created)
+  - `/Users/jiachenwang/Desktop/ai工作室/tests/verify-web-app-shell.mjs` (created)
+  - `/Users/jiachenwang/Desktop/ai工作室/tests/verify-project-canvas-ui.mjs` (updated)
+  - `/Users/jiachenwang/Desktop/ai工作室/tests/verify-project-canvas-navigation.mjs` (updated)
+  - `/Users/jiachenwang/Desktop/ai工作室/tests/verify-chat-ui.mjs` (updated)
+  - `/Users/jiachenwang/Desktop/ai工作室/tests/verify-assets-layout.mjs` (updated)
+  - `/Users/jiachenwang/Desktop/ai工作室/tests/verify-assets-media.mjs` (updated)
+  - `/Users/jiachenwang/Desktop/ai工作室/tests/verify-overview-title-removed.mjs` (updated)
+
+### Phase 5: Delivery
+- **Status:** complete
+- Actions taken:
+  - Prepared the project for `npm run dev` and `npm test`
+  - Kept `222.html` as a redirect to protect old links while moving the real app to named pages
+- Files created/modified:
+  - `/Users/jiachenwang/Desktop/ai工作室/task_plan.md` (updated)
+  - `/Users/jiachenwang/Desktop/ai工作室/findings.md` (updated)
+  - `/Users/jiachenwang/Desktop/ai工作室/progress.md` (updated)
 
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
-| Initial inspection | Open `222.html` source | Valid HTML document | JSX/React source in `.html` file | fail |
-| Browser verification before fix | Visit `http://127.0.0.1:4173/222.html` | Rendered interface | Raw `import React...` source displayed in page body | fail |
-| HTML shell verification after fix | `node tests/verify-222.mjs` | Standalone page checks pass | `PASS: 222.html is a runnable standalone page.` | pass |
-| HTTP verification after fix | Request `/` and `/222.html` | Both respond successfully | `root 200`, `222 200` | pass |
-| Browser verification after fix | Visit `http://127.0.0.1:4173/222.html` | Final UI renders with no console errors | Page title and UI render correctly; no console errors | pass |
-| Asset layout verification before fix | `node tests/verify-assets-layout.mjs` | All asset cards have stable height and no overflow | `Wireframe Models` card measured `24px` height with clipped content | fail |
-| Asset media verification before fix | `node tests/verify-assets-media.mjs` | All asset images load | `Wireframe Models` image loaded with `naturalWidth: 0` | fail |
-| Asset media verification after fix | `node tests/verify-assets-media.mjs` | All asset images load | `PASS: 6 asset images loaded successfully.` | pass |
-| Asset layout verification after fix | `node tests/verify-assets-layout.mjs` | All asset cards have stable height and no overflow | `PASS: 6 asset cards meet layout bounds.` | pass |
-| Chat UI verification before feature | `node tests/verify-chat-ui.mjs` | Chat shell markers exist | Missing assistant panel, starters, input, and send button | fail |
-| Chat API verification before feature | `node tests/verify-chat-api.mjs` | Node server and `/api/chat` contract exist | `server.mjs` missing, server never became ready | fail |
-| Chat UI verification after feature | `node tests/verify-chat-ui.mjs` | Chat shell markers exist | `PASS: AI chat UI markers are present.` | pass |
-| Chat API verification after feature | `node tests/verify-chat-api.mjs` | `/api/studio-data` works and `/api/chat` returns missing-key contract when unset | `PASS: chat API contract is valid.` | pass |
-| Browser verification after AI feature | Trigger starter prompt on `Assets` page | Right-side chat renders and degrades gracefully without key | User prompt and controlled missing-key assistant message both render in panel | pass |
-| Project canvas UI verification before feature | `node tests/verify-project-canvas-ui.mjs` | Canvas should expose project-linked navigation markers | Missing breadcrumb shell, metadata shell, connections layer, and project canvas hooks | fail |
-| Project canvas navigation verification after feature | `node tests/verify-project-canvas-navigation.mjs` | Clicking a project row should open the matching project canvas | `PASS: Project rows navigate to dedicated canvases with metadata and connections.` | pass |
-| Manual browser verification after project-canvas feature | Open page, click `PRJ-002`, then return to overview | Project canvas loads with correct title and metadata, then overview restores | `Dark Matter E-commerce` canvas opened with 4 visible connections; back button returned to `Studio Overview` | pass |
+| Discovery audit | Inspect current HTML/JS structure | Separate pages and Web App shell already exist | Current app is still one HTML shell plus one JS file and no Web App shell | fail |
+| Splash flow verification | `node tests/verify-splash-page.mjs` | Splash points to renamed app shell | `PASS: Splash entry flow markers are present.` | pass |
+| Legacy redirect verification | `node tests/verify-222.mjs` | Old `222.html` redirects into the renamed page | `PASS: 222.html is a legacy redirect shim.` | pass |
+| Workspace shell verification | `node tests/verify-workspace-page.mjs` | `workspace.html` exists and loads split assets | `PASS: workspace.html is a structured standalone page.` | pass |
+| Web App shell verification | `node tests/verify-web-app-shell.mjs` | Manifest, service worker, and MIME wiring exist | `PASS: Web App shell files are present and wired.` | pass |
+| Workspace marker verification | `node tests/verify-project-canvas-ui.mjs` | Workspace page exposes canvas markers and projects page exposes row hooks | `PASS: Workspace canvas UI markers are present.` | pass |
+| Assets UI verification | `node tests/verify-chat-ui.mjs` | Assets page exposes assistant UI markers | `PASS: AI chat UI markers are present.` | pass |
+| Overview text verification | `node tests/verify-overview-title-removed.mjs` | Workspace route should not revive old overview title text | `PASS: Overview canvas text no longer includes Studio Overview.` | pass |
+| Chat API verification | `node tests/verify-chat-api.mjs` | Server API contract remains intact | `PASS: chat API contract is valid.` | pass |
+| Asset layout verification | `node tests/verify-assets-layout.mjs` | Assets page cards stay within expected bounds | `PASS: 6 asset cards meet layout bounds.` | pass |
+| Asset media verification | `node tests/verify-assets-media.mjs` | Assets page imagery loads in the split route | `PASS: 6 asset images loaded successfully.` | pass |
+| Project route verification | `node tests/verify-project-canvas-navigation.mjs` | Project route loads matching canvas metadata and connections | `PASS: Project canvas route loads metadata and connections.` | pass |
+| Full regression runner | `node tests/run-all.mjs` | Entire verification suite passes | All checks passed | pass |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
 |-----------|-------|---------|------------|
-| 2026-03-26 | `222.html` cannot run directly as HTML | 1 | Rewrite as browser-runnable HTML |
-| 2026-03-26 | Browser console showed favicon 404 during verification | 1 | Added `<link rel="icon" href="data:,">` to suppress the missing favicon request |
-| 2026-03-26 | Playwright CLI session commands were awkward for direct data extraction | 1 | Switched to eval-based checks and dedicated verification scripts |
-| 2026-03-26 | OpenAI docs MCP server was unavailable | 1 | Used official web docs fallback on OpenAI domains only |
-| 2026-03-26 | Project-canvas browser test hit Playwright session socket collisions during chained runs | 1 | Switched the new test to `--session` long-form naming with a unique session id |
+| 2026-03-26 | No new implementation errors yet in the Web App refactor phase | 1 | Continue into regression-first implementation |
+| 2026-03-26 | Playwright CLI socket collisions on the project-route test | 1 | Replaced the route test with Chrome headless DOM verification |
 
 ## 5-Question Reboot Check
 | Question | Answer |
 |----------|--------|
-| Where am I? | Phase 5 |
-| Where am I going? | Final user handoff |
-| What's the goal? | Deliver a final runnable workspace page that includes stable assets, AI chat, and project-linked canvases |
-| What have I learned? | The app can stay lightweight while still supporting real AI and multi-board canvas navigation with shared data and per-board state |
-| What have I done? | Diagnosed the root cause, rebuilt the page, fixed the assets layout, added AI chat, linked projects to dedicated canvases, verified locally, and kept the Node server running |
+| Where am I? | Phase 2 |
+| Where am I going? | Delivery of the named multi-page Web App shell |
+| What's the goal? | Replace the `222.html` monolith with maintainable pages and deployment-ready Web App groundwork |
+| What have I learned? | The split-page structure can preserve the existing product behavior while making routes and future auth much cleaner |
+| What have I done? | Completed the refactor, added the Web App shell, and verified the new routes and assets end to end |
 
 ---
 *Update after completing each phase or encountering errors*

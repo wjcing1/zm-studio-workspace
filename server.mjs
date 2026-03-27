@@ -40,9 +40,13 @@ function loadDotEnv() {
 loadDotEnv();
 
 const PORT = Number(process.env.PORT || 4173);
-const MODEL = process.env.OPENAI_MODEL || "gpt-5";
-const client = process.env.OPENAI_API_KEY
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+const MINIMAX_BASE_URL = process.env.MINIMAX_BASE_URL || "https://api.minimaxi.com/v1";
+const MODEL = process.env.MINIMAX_MODEL || "MiniMax-M2.7";
+const client = process.env.MINIMAX_API_KEY
+  ? new OpenAI({
+      apiKey: process.env.MINIMAX_API_KEY,
+      baseURL: MINIMAX_BASE_URL,
+    })
   : null;
 
 const MIME_TYPES = {
@@ -141,17 +145,17 @@ function normalizeMessages(input) {
     .slice(-12);
 }
 
-function extractResponseText(apiResponse) {
-  if (typeof apiResponse.output_text === "string" && apiResponse.output_text.trim()) {
-    return apiResponse.output_text.trim();
+function extractChatText(completion) {
+  const content = completion?.choices?.[0]?.message?.content;
+
+  if (typeof content === "string" && content.trim()) {
+    return content.replace(/^<think>[\s\S]*?<\/think>\s*/i, "").trim();
   }
 
-  const outputs = Array.isArray(apiResponse.output) ? apiResponse.output : [];
-  for (const item of outputs) {
-    if (!Array.isArray(item.content)) continue;
-    for (const content of item.content) {
-      if (content.type === "output_text" && typeof content.text === "string" && content.text.trim()) {
-        return content.text.trim();
+  if (Array.isArray(content)) {
+    for (const item of content) {
+      if (item?.type === "text" && typeof item.text === "string" && item.text.trim()) {
+        return item.text.replace(/^<think>[\s\S]*?<\/think>\s*/i, "").trim();
       }
     }
   }
@@ -162,7 +166,7 @@ function extractResponseText(apiResponse) {
 async function handleChat(request, response) {
   if (!client) {
     sendJson(response, 503, {
-      error: "OPENAI_API_KEY is not configured on the server. Add it to your environment and restart the app.",
+      error: "MINIMAX_API_KEY is not configured on the server. Add it to your environment and restart the app.",
     });
     return;
   }
@@ -182,33 +186,23 @@ async function handleChat(request, response) {
   }
 
   try {
-    const apiResponse = await client.responses.create({
+    const completion = await client.chat.completions.create({
       model: MODEL,
-      input: [
+      messages: [
         {
-          role: "developer",
-          content: [
-            {
-              type: "input_text",
-              text: buildDeveloperPrompt(),
-            },
-          ],
+          role: "system",
+          content: buildDeveloperPrompt(),
         },
-        ...messages.map((message) => ({
-          role: message.role,
-          content: [
-            {
-              type: "input_text",
-              text: message.content,
-            },
-          ],
-        })),
+        ...messages,
       ],
+      extra_body: {
+        reasoning_split: true,
+      },
     });
 
-    const reply = extractResponseText(apiResponse);
+    const reply = extractChatText(completion);
     if (!reply) {
-      throw new Error("OpenAI returned an empty response.");
+      throw new Error("MiniMax returned an empty response.");
     }
 
     sendJson(response, 200, {
@@ -219,8 +213,8 @@ async function handleChat(request, response) {
     sendJson(response, 502, {
       error:
         error instanceof Error
-          ? `OpenAI request failed: ${error.message}`
-          : "OpenAI request failed.",
+          ? `MiniMax request failed: ${error.message}`
+          : "MiniMax request failed.",
     });
   }
 }

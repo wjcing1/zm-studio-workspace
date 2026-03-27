@@ -1,4 +1,5 @@
-const CACHE_NAME = "zm-studio-shell-v1";
+const CACHE_NAME = "zm-studio-shell-v2";
+const ASSETS_VERSION = "2026-03-27-nav-1";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -7,21 +8,57 @@ const APP_SHELL = [
   "/projects.html",
   "/assets.html",
   "/222.html",
-  "/styles/shared.css",
+  `/styles/shared.css?v=${ASSETS_VERSION}`,
+  `/styles/assets.css?v=${ASSETS_VERSION}`,
   "/styles/workspace.css",
   "/styles/projects.css",
-  "/styles/assets.css",
   "/styles/splash.css",
   "/scripts/shared/studio-data-client.js",
   "/scripts/shared/register-web-app.js",
   "/scripts/workspace-page.js",
   "/scripts/projects-page.js",
-  "/scripts/assets-page.js",
+  `/scripts/assets-page.js?v=${ASSETS_VERSION}`,
   "/splash.js",
   "/studio-data.mjs",
   "/manifest.webmanifest",
   "/icons/app-icon.svg"
 ];
+
+function isRefreshSensitiveShellAsset(request, url) {
+  return (
+    request.mode === "navigate" ||
+    request.destination === "script" ||
+    request.destination === "style" ||
+    url.pathname.endsWith(".html") ||
+    url.pathname.endsWith(".js") ||
+    url.pathname.endsWith(".mjs") ||
+    url.pathname.endsWith(".css")
+  );
+}
+
+async function cacheResponse(request, response) {
+  if (!response || !response.ok) {
+    return response;
+  }
+
+  const cache = await caches.open(CACHE_NAME);
+  cache.put(request, response.clone());
+  return response;
+}
+
+async function networkFirst(request, fallback) {
+  try {
+    const response = await fetch(request);
+    return cacheResponse(request, response);
+  } catch {
+    const cached = await caches.match(request);
+    if (cached) {
+      return cached;
+    }
+
+    return fallback ? caches.match(fallback) : Response.error();
+  }
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -57,13 +94,8 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (request.mode === "navigate") {
-    event.respondWith(
-      fetch(request).catch(async () => {
-        const cached = await caches.match(url.pathname);
-        return cached || caches.match("/workspace.html");
-      }),
-    );
+  if (isRefreshSensitiveShellAsset(request, url)) {
+    event.respondWith(networkFirst(request, request.mode === "navigate" ? "/workspace.html" : null));
     return;
   }
 

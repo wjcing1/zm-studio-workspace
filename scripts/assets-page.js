@@ -36,6 +36,26 @@ const assistantInput = document.getElementById("assistantInput");
 const assistantSend = document.getElementById("assistantSend");
 const assistantComposer = document.getElementById("assistantComposer");
 
+function buildThinkingMarkup() {
+  return `
+    <div class="assistant-thinking" role="status" aria-label="AI is thinking">
+      <span class="thinking-dot"></span>
+      <span class="thinking-dot"></span>
+      <span class="thinking-dot"></span>
+    </div>
+  `;
+}
+
+function replacePendingAssistantMessage(content) {
+  const pendingIndex = state.chat.messages.findIndex((message) => message.pending);
+  if (pendingIndex === -1) return;
+
+  state.chat.messages[pendingIndex] = {
+    role: "assistant",
+    content,
+  };
+}
+
 function filteredAssets() {
   return assetsDatabase.filter((asset) => {
     const query = state.searchQuery.trim().toLowerCase();
@@ -109,9 +129,9 @@ function renderAssistant() {
   assistantMessages.innerHTML = state.chat.messages
     .map(
       (message) => `
-        <article class="assistant-message ${message.role === "user" ? "is-user" : "is-assistant"}">
+        <article class="assistant-message ${message.role === "user" ? "is-user" : "is-assistant"} ${message.pending ? "is-thinking" : ""}">
           <div class="assistant-message-label">${message.role === "user" ? "You" : "AI"}</div>
-          <div class="assistant-message-body">${nl2br(message.content)}</div>
+          <div class="assistant-message-body">${message.pending ? buildThinkingMarkup() : nl2br(message.content)}</div>
         </article>
       `,
     )
@@ -126,7 +146,7 @@ function renderAssistant() {
   } else if (state.chat.error) {
     assistantStatus.textContent = state.chat.error;
   } else {
-    assistantStatus.textContent = "Live AI via /api/chat";
+    assistantStatus.textContent = "Live MiniMax AI via /api/chat";
   }
 
   assistantMessages.scrollTop = assistantMessages.scrollHeight;
@@ -137,6 +157,11 @@ async function sendChatMessage(rawText) {
   if (!content || state.chat.sending) return;
 
   state.chat.messages.push({ role: "user", content });
+  state.chat.messages.push({
+    role: "assistant",
+    content: "",
+    pending: true,
+  });
   state.chat.input = "";
   state.chat.error = "";
   state.chat.sending = true;
@@ -149,10 +174,12 @@ async function sendChatMessage(rawText) {
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        messages: state.chat.messages.map((message) => ({
+        messages: state.chat.messages
+          .filter((message) => !message.pending)
+          .map((message) => ({
           role: message.role,
           content: message.content,
-        })),
+          })),
       }),
     });
 
@@ -161,18 +188,12 @@ async function sendChatMessage(rawText) {
       throw new Error(payload.error || `AI request failed with status ${response.status}.`);
     }
 
-    state.chat.messages.push({
-      role: "assistant",
-      content: payload.reply || "I couldn't produce a reply just now.",
-    });
+    replacePendingAssistantMessage(payload.reply || "I couldn't produce a reply just now.");
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "AI service is currently unavailable.";
     state.chat.error = message;
-    state.chat.messages.push({
-      role: "assistant",
-      content: `现在还没有拿到 AI 回复。\n\n${message}`,
-    });
+    replacePendingAssistantMessage(`现在还没有拿到 AI 回复。\n\n${message}`);
   } finally {
     state.chat.sending = false;
     renderAssistant();

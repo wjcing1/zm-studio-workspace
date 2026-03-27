@@ -6,7 +6,7 @@
 
 **Architecture:** The app will move from a static-only page to a tiny Node server that serves the site and proxies AI requests. Shared studio data will live in JSON so the frontend renderer and the chat backend answer from the same source of truth.
 
-**Tech Stack:** HTML, CSS, browser JavaScript, Node.js built-in HTTP server, OpenAI JavaScript SDK or official REST pattern, JSON data files, custom Node verification scripts.
+**Tech Stack:** HTML, CSS, browser JavaScript, Node.js built-in HTTP server, OpenAI JavaScript SDK configured for MiniMax's OpenAI-compatible API, JSON data files, custom Node verification scripts.
 
 ---
 
@@ -78,7 +78,7 @@ Expected:
 
 - `verify-chat-api.mjs` should expect:
   - `GET /api/studio-data` returns JSON
-  - `POST /api/chat` returns `503` with a missing-key message when `OPENAI_API_KEY` is unset
+  - `POST /api/chat` returns `503` with a missing-key message when `MINIMAX_API_KEY` is unset
 
 **Step 2: Run test to verify it fails**
 
@@ -95,7 +95,7 @@ Expected: FAIL because `server.mjs` and the endpoints do not exist yet.
 - Serve static files.
 - Add `GET /api/studio-data`.
 - Add `POST /api/chat`.
-- Use the OpenAI Responses API from the server only.
+- Use MiniMax's OpenAI-compatible Chat Completions API from the server only.
 
 **Step 4: Run test to verify it passes**
 

@@ -27,7 +27,7 @@ async function main() {
     env: {
       ...process.env,
       PORT: String(PORT),
-      OPENAI_API_KEY: "",
+      MINIMAX_API_KEY: "",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });

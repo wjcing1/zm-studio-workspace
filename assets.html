@@ -14,8 +14,8 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icons/app-icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="./icons/app-icon.svg" />
-    <link rel="stylesheet" href="./styles/shared.css" />
-    <link rel="stylesheet" href="./styles/assets.css" />
+    <link rel="stylesheet" href="./styles/shared.css?v=2026-03-27-nav-1" />
+    <link rel="stylesheet" href="./styles/assets.css?v=2026-03-27-thinking-1" />
   </head>
   <body data-page="zm-assets">
     <div class="app-shell">
@@ -54,14 +54,6 @@
             Assets
           </a>
         </nav>
-
-        <div class="topbar-actions">
-          <div class="status-chip">
-            <span class="status-dot"></span>
-            <span id="webAppStatus">Public beta access</span>
-          </div>
-          <button class="install-btn" id="installAppBtn" type="button" hidden>Install</button>
-        </div>
       </header>
 
       <main class="page-main" aria-label="Assets page">
@@ -125,7 +117,7 @@
                     Send
                   </button>
                 </form>
-                <div class="assistant-status" id="assistantStatus">Live AI via /api/chat</div>
+                <div class="assistant-status" id="assistantStatus">Live MiniMax AI via /api/chat</div>
               </div>
             </aside>
           </div>
@@ -133,6 +125,6 @@
       </main>
     </div>
 
-    <script type="module" src="./scripts/assets-page.js"></script>
+    <script type="module" src="./scripts/assets-page.js?v=2026-03-27-thinking-1"></script>
   </body>
 </html>

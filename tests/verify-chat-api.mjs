@@ -25,7 +25,7 @@ async function main() {
     env: {
       ...process.env,
       PORT: String(PORT),
-      OPENAI_API_KEY: "",
+      MINIMAX_API_KEY: "",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -59,12 +59,12 @@ async function main() {
     });
 
     if (chatResponse.status !== 503) {
-      throw new Error(`/api/chat should return 503 without OPENAI_API_KEY, got ${chatResponse.status}`);
+      throw new Error(`/api/chat should return 503 without MINIMAX_API_KEY, got ${chatResponse.status}`);
     }
 
     const payload = await chatResponse.json();
-    if (!payload.error || !String(payload.error).includes("OPENAI_API_KEY")) {
-      throw new Error("/api/chat missing-key response did not explain OPENAI_API_KEY configuration");
+    if (!payload.error || !String(payload.error).includes("MINIMAX_API_KEY")) {
+      throw new Error("/api/chat missing-key response did not explain MINIMAX_API_KEY configuration");
     }
 
     console.log("PASS: chat API contract is valid.");

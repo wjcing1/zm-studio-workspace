@@ -1,4 +1,8 @@
 import { studioData } from "../../studio-data.mjs";
+import {
+  createBoardSnapshot,
+  createBoardState,
+} from "./workspace-board.js";
 
 export const pageLinks = {
   workspace: "./workspace.html",
@@ -162,7 +166,6 @@ function boardStorageKey(boardKey) {
 }
 
 function createBoard(boardKey, source, project = null) {
-  const baseCamera = sanitizeCamera(source?.camera, defaultViewportCamera());
   const persistedRaw = readStorage(boardStorageKey(boardKey));
   let persisted = null;
 
@@ -174,16 +177,15 @@ function createBoard(boardKey, source, project = null) {
     }
   }
 
-  return {
-    key: boardKey,
+  return createBoardState({
+    boardKey,
+    source,
+    persisted,
     projectId: project?.id || null,
     title: source?.title || (project ? `${project.name} Canvas` : "Studio Canvas"),
     description: source?.description || project?.summary || studioData.studio.description,
-    defaultCamera: cloneValue(baseCamera),
-    camera: sanitizeCamera(persisted?.camera, baseCamera),
-    nodes: sanitizeNodes(persisted?.nodes ?? source?.nodes ?? []),
-    connections: cloneValue(source?.connections ?? []),
-  };
+    fallbackCamera: sanitizeCamera(source?.camera, defaultViewportCamera()),
+  });
 }
 
 export function createBoardRegistry() {
@@ -201,13 +203,7 @@ export function createBoardRegistry() {
 export function persistBoard(board) {
   if (!board) return;
 
-  writeStorage(
-    boardStorageKey(board.key),
-    JSON.stringify({
-      camera: board.camera,
-      nodes: board.nodes,
-    }),
-  );
+  writeStorage(boardStorageKey(board.key), JSON.stringify(createBoardSnapshot(board)));
 }
 
 export { studioData };

@@ -32,8 +32,8 @@ async function main() {
       message: "Assistant panel should include suggested starter prompts.",
     },
     {
-      ok: source.includes('src="./scripts/assets-page.js"'),
-      message: "Assets page should load the page-specific assets script.",
+      ok: source.includes('src="./scripts/assets-page.js?v='),
+      message: "Assets page should load the versioned page-specific assets script.",
     },
   ];
 

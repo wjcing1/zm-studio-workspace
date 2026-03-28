@@ -15,7 +15,7 @@
     <link rel="icon" href="./icons/app-icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="./icons/app-icon.svg" />
     <link rel="stylesheet" href="./styles/shared.css?v=2026-03-27-nav-1" />
-    <link rel="stylesheet" href="./styles/workspace.css" />
+    <link rel="stylesheet" href="./styles/workspace.css?v=2026-03-28-workspace-copilot-1" />
   </head>
   <body data-page="zm-workspace">
     <div class="app-shell">
@@ -81,10 +81,67 @@
                   <div class="canvas-context-meta" id="canvasContextMeta"></div>
                 </div>
               </div>
+              <button class="canvas-context-toggle panel-surface" id="canvasContextToggle" type="button" hidden>
+                <span class="canvas-context-toggle-icon" aria-hidden="true"></span>
+                <span id="canvasContextToggleLabel">Show Overview</span>
+              </button>
+              <div class="canvas-toolbar panel-surface" id="canvasToolbar" aria-label="Canvas tools">
+                <button class="canvas-tool-btn" id="addTextNodeBtn" type="button">Text</button>
+                <button class="canvas-tool-btn" id="addLinkNodeBtn" type="button">Link</button>
+                <button class="canvas-tool-btn" id="addGroupNodeBtn" type="button">Group</button>
+                <button class="canvas-tool-btn" id="undoCanvasBtn" type="button">Undo</button>
+                <button class="canvas-tool-btn" id="redoCanvasBtn" type="button">Redo</button>
+                <button class="canvas-tool-btn" id="canvasImportBtn" type="button">Import</button>
+                <button class="canvas-tool-btn" id="canvasExportBtn" type="button">Export</button>
+              </div>
             </div>
             <div class="canvas-grid" id="canvasGrid"></div>
             <svg class="canvas-connections" id="canvasConnections" aria-hidden="true"></svg>
             <div class="canvas-stage" id="canvasStage"></div>
+            <div class="marquee-selection" id="marqueeSelection" hidden></div>
+
+            <button
+              class="assistant-companion panel-surface"
+              id="assistantCompanion"
+              type="button"
+              aria-haspopup="dialog"
+              aria-controls="workspaceAssistantPanel"
+            >
+              <span class="assistant-companion-dot" aria-hidden="true"></span>
+              <span id="assistantCompanionLabel">AI Nearby</span>
+            </button>
+
+            <aside class="workspace-assistant panel-surface" id="workspaceAssistantPanel" hidden aria-label="Workspace assistant">
+              <div class="workspace-assistant-head">
+                <div>
+                  <div class="assistant-kicker">Canvas Copilot</div>
+                  <h2 class="workspace-assistant-title">Think With The Board</h2>
+                </div>
+                <button class="workspace-assistant-close" id="assistantCloseBtn" type="button">Close</button>
+              </div>
+              <p class="workspace-assistant-copy" id="assistantContextSummary">
+                The assistant follows your cursor and prioritizes nearby cards, selected nodes, and connected context.
+              </p>
+              <div class="assistant-starters" id="assistantStarters"></div>
+              <div class="assistant-thread" id="assistantMessages"></div>
+              <form class="assistant-composer" id="assistantComposer">
+                <textarea
+                  class="assistant-input"
+                  id="assistantInput"
+                  name="assistantInput"
+                  placeholder="Ask the assistant to extend, summarize, group, or reorganize the nearby canvas..."
+                ></textarea>
+                <button class="assistant-send" id="assistantSend" type="submit">Apply With AI</button>
+              </form>
+              <div class="assistant-status" id="assistantStatus">Workspace AI ready.</div>
+            </aside>
+
+            <input
+              id="canvasImportInput"
+              type="file"
+              accept=".canvas,.json,application/json"
+              hidden
+            />
 
             <div class="canvas-hud">
               <div class="hud-pill" id="zoomValue">
@@ -102,12 +159,13 @@
                 </svg>
                 Reset View
               </button>
+              <button class="hud-btn" id="assistantToggleBtn" type="button">AI Panel</button>
             </div>
           </div>
         </section>
       </main>
     </div>
 
-    <script type="module" src="./scripts/workspace-page.js"></script>
+    <script type="module" src="./scripts/workspace-page.js?v=2026-03-28-workspace-copilot-1"></script>
   </body>
 </html>

@@ -17,16 +17,16 @@ async function main() {
       message: "workspace.html should expose the workspace page marker.",
     },
     {
-      ok: source.includes('href="./styles/shared.css"'),
-      message: "workspace.html should load the shared stylesheet.",
+      ok: source.includes('href="./styles/shared.css?v='),
+      message: "workspace.html should load the versioned shared stylesheet.",
     },
     {
-      ok: source.includes('href="./styles/workspace.css"'),
-      message: "workspace.html should load the page-specific workspace stylesheet.",
+      ok: source.includes('href="./styles/workspace.css?v='),
+      message: "workspace.html should load the versioned page-specific workspace stylesheet.",
     },
     {
-      ok: source.includes('src="./scripts/workspace-page.js"'),
-      message: "workspace.html should load the page-specific workspace script.",
+      ok: source.includes('src="./scripts/workspace-page.js?v='),
+      message: "workspace.html should load the versioned page-specific workspace script.",
     },
   ];
 

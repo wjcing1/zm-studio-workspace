@@ -1,5 +1,6 @@
-const CACHE_NAME = "zm-studio-shell-v2";
+const CACHE_NAME = "zm-studio-shell-v4";
 const ASSETS_VERSION = "2026-03-27-nav-1";
+const WORKSPACE_VERSION = "2026-03-28-workspace-copilot-1";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -10,12 +11,13 @@ const APP_SHELL = [
   "/222.html",
   `/styles/shared.css?v=${ASSETS_VERSION}`,
   `/styles/assets.css?v=${ASSETS_VERSION}`,
-  "/styles/workspace.css",
+  `/styles/workspace.css?v=${WORKSPACE_VERSION}`,
   "/styles/projects.css",
   "/styles/splash.css",
   "/scripts/shared/studio-data-client.js",
+  "/scripts/shared/workspace-board.js",
   "/scripts/shared/register-web-app.js",
-  "/scripts/workspace-page.js",
+  `/scripts/workspace-page.js?v=${WORKSPACE_VERSION}`,
   "/scripts/projects-page.js",
   `/scripts/assets-page.js?v=${ASSETS_VERSION}`,
   "/splash.js",

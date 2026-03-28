@@ -8,10 +8,16 @@ const checks = [
   ["node", ["tests/verify-222.mjs"]],
   ["node", ["tests/verify-workspace-page.mjs"]],
   ["node", ["tests/verify-web-app-shell.mjs"]],
+  ["node", ["tests/verify-web-app-cache-refresh.mjs"]],
   ["node", ["tests/verify-project-canvas-ui.mjs"]],
+  ["node", ["tests/verify-workspace-board-model.mjs"]],
+  ["node", ["tests/verify-workspace-copilot-ui.mjs"]],
+  ["node", ["tests/verify-workspace-pan-drag.mjs"]],
   ["node", ["tests/verify-chat-ui.mjs"]],
   ["node", ["tests/verify-overview-title-removed.mjs"]],
+  ["node", ["tests/verify-canvas-context-collapse.mjs"]],
   ["node", ["tests/verify-chat-api.mjs"]],
+  ["node", ["tests/verify-workspace-ai-api.mjs"]],
 ];
 
 function runCheck(command, args) {

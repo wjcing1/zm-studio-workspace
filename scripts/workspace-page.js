@@ -28,7 +28,7 @@ import { setupWebApp } from "./shared/register-web-app.js";
 setupWebApp();
 
 const WORKSPACE_STARTERS = [
-  "Summarize the cards near my cursor and add three follow-up notes.",
+  "Summarize the selected or nearby cards and add three follow-up notes.",
   "Group the selected cards into one cluster and label it clearly.",
   "Turn the nearby ideas into a simple flow with connecting edges.",
 ];
@@ -66,6 +66,7 @@ const state = {
     resizeHandle: "",
     nodeId: null,
     edgeDraft: null,
+    touchGesture: null,
     marqueeSeed: null,
     preservedSelection: [],
   },
@@ -73,15 +74,15 @@ const state = {
     snapshot: null,
     dirty: false,
   },
-  keyboard: {
-    isSpacePressed: false,
+  touch: {
+    points: {},
   },
   assistant: {
     messages: [
       {
         role: "assistant",
         content:
-          "Move your cursor to the area you are thinking about and ask me to expand, organize, connect, or rewrite it.",
+          "Select cards or focus on an area, then ask me to expand, organize, connect, or rewrite it.",
       },
     ],
     input: "",
@@ -108,7 +109,6 @@ const zoomValue = document.querySelector("#zoomValue span");
 const resetViewBtn = document.getElementById("resetViewBtn");
 const assistantToggleBtn = document.getElementById("assistantToggleBtn");
 const assistantCompanion = document.getElementById("assistantCompanion");
-const assistantCompanionLabel = document.getElementById("assistantCompanionLabel");
 const workspaceAssistantPanel = document.getElementById("workspaceAssistantPanel");
 const assistantCloseBtn = document.getElementById("assistantCloseBtn");
 const assistantContextSummary = document.getElementById("assistantContextSummary");
@@ -248,9 +248,38 @@ function syncPointer(clientX, clientY, eventTarget = null) {
   state.pointer.clientY = clientY;
   state.pointer.worldX = world.x;
   state.pointer.worldY = world.y;
-  state.ui.hoveredNodeId = eventTarget?.closest?.(".canvas-node")?.dataset?.id || null;
-  positionAssistantCompanion();
+  state.ui.hoveredNodeId = resolveHoveredNodeId(clientX, clientY, eventTarget);
   renderAssistantContext();
+}
+
+function resolveHoveredNodeId(clientX, clientY, eventTarget = null) {
+  const directNodeId = eventTarget?.closest?.(".canvas-node")?.dataset?.id || null;
+  if (directNodeId) {
+    return directNodeId;
+  }
+
+  return getCanvasNodeIdAtPoint(clientX, clientY);
+}
+
+function getCanvasNodeIdAtPoint(clientX, clientY) {
+  const elements = document.elementsFromPoint(clientX, clientY);
+
+  for (const element of elements) {
+    if (
+      element?.closest?.(
+        ".canvas-context-shell, #canvasContextToggle, #canvasToolbar, #assistantCompanion, #workspaceAssistantPanel",
+      )
+    ) {
+      return null;
+    }
+
+    const nodeId = element?.closest?.(".canvas-node")?.dataset?.id || null;
+    if (nodeId) {
+      return nodeId;
+    }
+  }
+
+  return null;
 }
 
 function edgeAnchor(frame, side) {
@@ -563,10 +592,10 @@ function buildAssistantSummary(board = getActiveBoard()) {
   const selected = getSelectedNodes(board);
   const hoveredNode = state.ui.hoveredNodeId ? getNodeById(state.ui.hoveredNodeId) : null;
   const pointerLabel = hoveredNode
-    ? `Hovering ${hoveredNode.title || hoveredNode.label || hoveredNode.content?.split("\n")[0] || hoveredNode.id}`
+    ? `Focus ${hoveredNode.title || hoveredNode.label || hoveredNode.content?.split("\n")[0] || hoveredNode.id}`
     : nearby[0]
-      ? `Nearest ${nearby[0].title || nearby[0].label || nearby[0].content?.split("\n")[0] || nearby[0].id}`
-      : "Pointer waiting for focus";
+      ? `Nearby ${nearby[0].title || nearby[0].label || nearby[0].content?.split("\n")[0] || nearby[0].id}`
+      : "No nearby focus yet";
   const selectedLabel = selected.length > 0 ? `${selected.length} node${selected.length > 1 ? "s" : ""} selected` : "No selection";
 
   return `${pointerLabel}. ${selectedLabel}. Nearby context: ${
@@ -578,14 +607,6 @@ function renderAssistantContext() {
   const board = getActiveBoard();
   const summary = buildAssistantSummary(board);
   assistantContextSummary.textContent = summary;
-
-  const selectedCount = state.selection.nodeIds.length;
-  const hoveredNode = state.ui.hoveredNodeId ? getNodeById(state.ui.hoveredNodeId) : null;
-  assistantCompanionLabel.textContent = hoveredNode
-    ? `AI near ${hoveredNode.title || hoveredNode.label || hoveredNode.id}`
-    : selectedCount > 0
-      ? `AI with ${selectedCount} selected`
-      : "AI Nearby";
 
   assistantCompanion.hidden = false;
   workspaceAssistantPanel.hidden = !state.ui.isAssistantOpen;
@@ -623,14 +644,38 @@ function renderAssistantThread() {
   assistantMessages.scrollTop = assistantMessages.scrollHeight;
 }
 
-function positionAssistantCompanion() {
-  const rect = canvasViewport.getBoundingClientRect();
-  const maxX = Math.max(20, rect.width - (assistantCompanion.offsetWidth || 160) - 20);
-  const maxY = Math.max(20, rect.height - (assistantCompanion.offsetHeight || 48) - 20);
-  const x = clamp(state.pointer.clientX - rect.left + 26, 18, maxX);
-  const y = clamp(state.pointer.clientY - rect.top + 24, 24, maxY);
+function focusAssistantInput() {
+  requestAnimationFrame(() => {
+    assistantInput?.focus({ preventScroll: true });
+    if (typeof assistantInput?.selectionStart === "number") {
+      const caret = assistantInput.value.length;
+      assistantInput.setSelectionRange(caret, caret);
+    }
+  });
+}
 
-  assistantCompanion.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0)`;
+function openAssistantPanel(options = {}) {
+  state.ui.isAssistantOpen = true;
+  renderAssistantContext();
+
+  if (options.focusInput) {
+    focusAssistantInput();
+  }
+}
+
+function closeAssistantPanel() {
+  if (!state.ui.isAssistantOpen) return;
+  state.ui.isAssistantOpen = false;
+  renderAssistantContext();
+}
+
+function toggleAssistantPanel(options = {}) {
+  state.ui.isAssistantOpen = !state.ui.isAssistantOpen;
+  renderAssistantContext();
+
+  if (state.ui.isAssistantOpen && options.focusInput) {
+    focusAssistantInput();
+  }
 }
 
 function openOverviewCanvas() {
@@ -679,6 +724,7 @@ function beginUndoableInteraction(mode, extras = {}) {
     resizeHandle: extras.resizeHandle || "",
     nodeId: extras.nodeId || null,
     edgeDraft: extras.edgeDraft || null,
+    touchGesture: extras.touchGesture || null,
     marqueeSeed: extras.marqueeSeed || null,
     preservedSelection: extras.preservedSelection || [],
     initialFrame: extras.initialFrame || null,
@@ -688,6 +734,7 @@ function beginUndoableInteraction(mode, extras = {}) {
 
 function endCanvasInteraction() {
   const board = getActiveBoard();
+  const capturedPointerId = state.interaction.pointerId;
 
   if (state.interaction.beforeSnapshot && state.interaction.changed) {
     pushBoardHistory(board, state.interaction.beforeSnapshot);
@@ -704,14 +751,115 @@ function endCanvasInteraction() {
     resizeHandle: "",
     nodeId: null,
     edgeDraft: null,
+    touchGesture: null,
     marqueeSeed: null,
     preservedSelection: [],
     initialFrame: null,
     initialWorld: null,
   };
+  if (capturedPointerId !== null) {
+    releaseCanvasPointerCapture(capturedPointerId);
+  }
   canvasViewport.classList.remove("is-panning");
   state.selection.marquee = null;
   renderCanvas();
+}
+
+function setTouchPoint(pointerId, clientX, clientY) {
+  state.touch.points[pointerId] = {
+    pointerId,
+    clientX,
+    clientY,
+  };
+}
+
+function removeTouchPoint(pointerId) {
+  delete state.touch.points[pointerId];
+}
+
+function getActiveTouchPoints() {
+  return Object.values(state.touch.points).sort((left, right) => left.pointerId - right.pointerId);
+}
+
+function touchPointDistance(left, right) {
+  return Math.hypot(right.clientX - left.clientX, right.clientY - left.clientY);
+}
+
+function touchPointCenter(left, right) {
+  return {
+    x: (left.clientX + right.clientX) * 0.5,
+    y: (left.clientY + right.clientY) * 0.5,
+  };
+}
+
+function captureCanvasPointer(pointerId) {
+  try {
+    canvasViewport.setPointerCapture(pointerId);
+  } catch {}
+}
+
+function releaseCanvasPointerCapture(pointerId) {
+  try {
+    if (canvasViewport.hasPointerCapture(pointerId)) {
+      canvasViewport.releasePointerCapture(pointerId);
+    }
+  } catch {}
+}
+
+function canStartTouchGesture() {
+  return !state.interaction.mode || state.interaction.mode === "marquee" || state.interaction.mode === "pan";
+}
+
+function beginTouchGestureInteraction() {
+  const points = getActiveTouchPoints();
+  if (points.length < 2 || !canStartTouchGesture()) return false;
+
+  const board = getActiveBoard();
+  const [firstPoint, secondPoint] = points;
+  const center = touchPointCenter(firstPoint, secondPoint);
+  const centerWorld = pointerToWorld(center.x, center.y);
+
+  beginUndoableInteraction("touch-gesture", {
+    beforeSnapshot: createBoardSnapshot(board),
+    touchGesture: {
+      originCamera: cloneValue(board.camera),
+      centerWorld,
+      startDistance: Math.max(24, touchPointDistance(firstPoint, secondPoint)),
+    },
+  });
+  canvasViewport.classList.add("is-panning");
+  state.selection.marquee = null;
+  renderCanvas();
+  return true;
+}
+
+function updateTouchGestureInteraction() {
+  if (state.interaction.mode !== "touch-gesture" || !state.interaction.touchGesture) return;
+
+  const points = getActiveTouchPoints();
+  if (points.length < 2) return;
+
+  const [firstPoint, secondPoint] = points;
+  const board = getActiveBoard();
+  const gesture = state.interaction.touchGesture;
+  const center = touchPointCenter(firstPoint, secondPoint);
+  const distance = Math.max(24, touchPointDistance(firstPoint, secondPoint));
+  const rect = canvasViewport.getBoundingClientRect();
+  const localX = center.x - rect.left;
+  const localY = center.y - rect.top;
+  const nextZoom = clamp(gesture.originCamera.z * (distance / gesture.startDistance), 0.35, 3);
+  const nextX = localX - gesture.centerWorld.x * nextZoom;
+  const nextY = localY - gesture.centerWorld.y * nextZoom;
+
+  if (nextX !== board.camera.x || nextY !== board.camera.y || nextZoom !== board.camera.z) {
+    if ((nextX !== board.camera.x || nextY !== board.camera.y) && !state.ui.isContextCollapsed) {
+      collapseCanvasContext();
+    }
+    board.camera.x = nextX;
+    board.camera.y = nextY;
+    board.camera.z = nextZoom;
+    state.interaction.changed = true;
+  }
 }
 
 function getNodeRectInWorld(node) {
@@ -1137,18 +1285,15 @@ canvasContextToggle?.addEventListener("click", () => {
 });
 
 assistantCompanion?.addEventListener("click", () => {
-  state.ui.isAssistantOpen = true;
-  renderAssistantContext();
+  openAssistantPanel({ focusInput: true });
 });
 
 assistantToggleBtn?.addEventListener("click", () => {
-  state.ui.isAssistantOpen = !state.ui.isAssistantOpen;
-  renderAssistantContext();
+  toggleAssistantPanel({ focusInput: state.ui.isAssistantOpen === false });
 });
 
 assistantCloseBtn?.addEventListener("click", () => {
-  state.ui.isAssistantOpen = false;
-  renderAssistantContext();
+  closeAssistantPanel();
 });
 
 addTextNodeBtn?.addEventListener("click", () => {
@@ -1222,9 +1367,30 @@ assistantComposer?.addEventListener("submit", (event) => {
 });
 
 canvasViewport.addEventListener("pointermove", (event) => {
+  if (event.pointerType === "touch") {
+    setTouchPoint(event.pointerId, event.clientX, event.clientY);
+  }
   syncPointer(event.clientX, event.clientY, event.target);
 
+  if (event.pointerType === "touch" && getActiveTouchPoints().length >= 2 && canStartTouchGesture()) {
+    beginTouchGestureInteraction();
+  }
+
   if (!state.interaction.mode) return;
+
+  if (
+    state.interaction.mode !== "touch-gesture" &&
+    state.interaction.pointerId !== null &&
+    event.pointerId !== state.interaction.pointerId
+  ) {
+    return;
+  }
+
+  if (state.interaction.mode === "touch-gesture") {
+    updateTouchGestureInteraction();
+    renderCanvas();
+    return;
+  }
 
   const board = getActiveBoard();
   const dx = event.clientX - state.interaction.lastX;
@@ -1302,7 +1468,7 @@ canvasViewport.addEventListener("pointermove", (event) => {
   }
 
   if (state.interaction.mode === "edge" && state.interaction.edgeDraft) {
-    const hoveredNode = event.target.closest(".canvas-node")?.dataset?.id || null;
+    const hoveredNode = getCanvasNodeIdAtPoint(event.clientX, event.clientY);
     state.interaction.edgeDraft.currentWorldX = world.x;
     state.interaction.edgeDraft.currentWorldY = world.y;
     state.interaction.edgeDraft.targetNodeId =
@@ -1324,6 +1490,19 @@ canvasViewport.addEventListener("pointerdown", (event) => {
   if (event.target.closest("#workspaceAssistantPanel")) return;
   if (event.target.closest("[data-open-project]")) return;
 
+  if (event.pointerType === "touch") {
+    setTouchPoint(event.pointerId, event.clientX, event.clientY);
+    captureCanvasPointer(event.pointerId);
+
+    if (beginTouchGestureInteraction()) {
+      return;
+    }
+
+    if (getActiveTouchPoints().length > 1) {
+      return;
+    }
+  }
+
   const portButton = event.target.closest("[data-port-node]");
   if (portButton) {
     const fromNodeId = portButton.dataset.portNode;
@@ -1342,7 +1521,7 @@ canvasViewport.addEventListener("pointerdown", (event) => {
       },
       beforeSnapshot: createBoardSnapshot(getActiveBoard()),
     });
-    canvasViewport.setPointerCapture(event.pointerId);
+    captureCanvasPointer(event.pointerId);
     renderCanvas();
     return;
   }
@@ -1368,12 +1547,21 @@ canvasViewport.addEventListener("pointerdown", (event) => {
       initialWorld: pointerToWorld(event.clientX, event.clientY),
       beforeSnapshot: createBoardSnapshot(getActiveBoard()),
     });
-    canvasViewport.setPointerCapture(event.pointerId);
+    captureCanvasPointer(event.pointerId);
     return;
   }
 
   const nodeElement = event.target.closest(".canvas-node");
   const isEditableField = event.target.matches("textarea,input");
+
+  if (nodeElement && isEditableField) {
+    const nodeId = nodeElement.dataset.id;
+    if (nodeId && !state.selection.nodeIds.includes(nodeId)) {
+      state.selection.nodeIds = [nodeId];
+      state.ui.selectedEdgeId = null;
+    }
+    return;
+  }
 
   if (nodeElement && !isEditableField) {
     const nodeId = nodeElement.dataset.id;
@@ -1395,13 +1583,12 @@ canvasViewport.addEventListener("pointerdown", (event) => {
       nodeId,
       beforeSnapshot: createBoardSnapshot(getActiveBoard()),
     });
-    canvasViewport.setPointerCapture(event.pointerId);
+    captureCanvasPointer(event.pointerId);
     renderCanvas();
     return;
   }
 
-  if (state.keyboard.isSpacePressed || event.button === 1 || !event.shiftKey) {
-    state.interaction.mode = "pan";
+  if (event.button === 1) {
     beginUndoableInteraction("pan", {
       pointerId: event.pointerId,
       lastX: event.clientX,
@@ -1409,7 +1596,7 @@ canvasViewport.addEventListener("pointerdown", (event) => {
       beforeSnapshot: createBoardSnapshot(getActiveBoard()),
     });
     canvasViewport.classList.add("is-panning");
-    canvasViewport.setPointerCapture(event.pointerId);
+    captureCanvasPointer(event.pointerId);
     return;
   }
 
@@ -1432,21 +1619,43 @@ canvasViewport.addEventListener("pointerdown", (event) => {
     state.selection.nodeIds = [];
     state.ui.selectedEdgeId = null;
   }
-  canvasViewport.setPointerCapture(event.pointerId);
+  captureCanvasPointer(event.pointerId);
   renderCanvas();
 });
 
-canvasViewport.addEventListener("pointerup", () => {
+canvasViewport.addEventListener("pointerup", (event) => {
+  if (event.pointerType === "touch") {
+    removeTouchPoint(event.pointerId);
+    releaseCanvasPointerCapture(event.pointerId);
+
+    if (state.interaction.mode === "touch-gesture") {
+      if (getActiveTouchPoints().length < 2) {
+        endCanvasInteraction();
+      }
+      return;
+    }
+  }
+
+  if (
+    state.interaction.mode &&
+    state.interaction.mode !== "touch-gesture" &&
+    state.interaction.pointerId !== null &&
+    event.pointerId !== state.interaction.pointerId
+  ) {
+    return;
+  }
+
   const board = getActiveBoard();
 
-  if (state.interaction.mode === "edge" && state.interaction.edgeDraft?.targetNodeId) {
+  if (state.interaction.mode === "edge" && state.interaction.edgeDraft) {
     const draft = state.interaction.edgeDraft;
-    const duplicateEdge = board.edges.find((edge) => edge.from === draft.fromNodeId && edge.to === draft.targetNodeId);
-    if (!duplicateEdge) {
+    const targetNodeId = draft.targetNodeId || getCanvasNodeIdAtPoint(event.clientX, event.clientY);
+    const duplicateEdge = board.edges.find((edge) => edge.from === draft.fromNodeId && edge.to === targetNodeId);
+    if (targetNodeId && targetNodeId !== draft.fromNodeId && !duplicateEdge) {
       board.edges.push({
         id: `edge-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         from: draft.fromNodeId,
-        to: draft.targetNodeId,
+        to: targetNodeId,
         fromSide: draft.fromSide,
         toSide: draft.toSide,
         fromEnd: "none",
@@ -1460,12 +1669,25 @@ canvasViewport.addEventListener("pointerup", () => {
   endCanvasInteraction();
 });
 
-canvasViewport.addEventListener("pointercancel", () => {
+canvasViewport.addEventListener("pointercancel", (event) => {
+  if (event.pointerType === "touch") {
+    removeTouchPoint(event.pointerId);
+    releaseCanvasPointerCapture(event.pointerId);
+  }
+
+  if (
+    state.interaction.mode &&
+    state.interaction.mode !== "touch-gesture" &&
+    state.interaction.pointerId !== null &&
+    event.pointerId !== state.interaction.pointerId
+  ) {
+    return;
+  }
   endCanvasInteraction();
 });
 
-canvasViewport.addEventListener("pointerleave", () => {
-  if (state.interaction.mode) {
+canvasViewport.addEventListener("pointerleave", (event) => {
+  if (state.interaction.mode && !canvasViewport.hasPointerCapture(event.pointerId)) {
     endCanvasInteraction();
   }
 });
@@ -1477,6 +1699,17 @@ canvasViewport.addEventListener(
     syncPointer(event.clientX, event.clientY, event.target);
 
     const board = getActiveBoard();
+    if (!event.ctrlKey && !event.metaKey && !event.altKey) {
+      if ((event.deltaX !== 0 || event.deltaY !== 0) && !state.ui.isContextCollapsed) {
+        collapseCanvasContext();
+      }
+      board.camera.x -= event.deltaX;
+      board.camera.y -= event.deltaY;
+      persistActiveBoard();
+      renderCanvas();
+      return;
+    }
+
     const rect = canvasViewport.getBoundingClientRect();
     const localX = event.clientX - rect.left;
     const localY = event.clientY - rect.top;
@@ -1571,7 +1804,6 @@ resetViewBtn?.addEventListener("click", () => {
 });
 
 window.addEventListener("resize", () => {
-  positionAssistantCompanion();
   renderCanvas();
 });
 
@@ -1589,7 +1821,11 @@ window.addEventListener("keydown", (event) => {
   const isTypingTarget = target?.matches?.("textarea, input");
 
   if (event.code === "Space" && !isTypingTarget) {
-    state.keyboard.isSpacePressed = true;
+    event.preventDefault();
+    if (!event.repeat) {
+      openAssistantPanel({ focusInput: true });
+    }
+    return;
   }
 
   if (isTypingTarget) {
@@ -1636,15 +1872,10 @@ window.addEventListener("keydown", (event) => {
     state.ui.selectedEdgeId = null;
     state.selection.marquee = null;
     if (state.ui.isAssistantOpen) {
-      state.ui.isAssistantOpen = false;
+      closeAssistantPanel();
+      return;
     }
     renderCanvas();
-  }
-});
-
-window.addEventListener("keyup", (event) => {
-  if (event.code === "Space") {
-    state.keyboard.isSpacePressed = false;
   }
 });
 
@@ -1652,4 +1883,3 @@ applyInitialRoute();
 syncRoute();
 renderAssistantThread();
 renderCanvas();
-positionAssistantCompanion();

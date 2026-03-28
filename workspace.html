@@ -101,14 +101,14 @@
             <div class="marquee-selection" id="marqueeSelection" hidden></div>
 
             <button
-              class="assistant-companion panel-surface"
+              class="assistant-companion"
               id="assistantCompanion"
               type="button"
+              aria-label="Open workspace AI panel"
               aria-haspopup="dialog"
               aria-controls="workspaceAssistantPanel"
             >
-              <span class="assistant-companion-dot" aria-hidden="true"></span>
-              <span id="assistantCompanionLabel">AI Nearby</span>
+              <span class="assistant-companion-core" aria-hidden="true"></span>
             </button>
 
             <aside class="workspace-assistant panel-surface" id="workspaceAssistantPanel" hidden aria-label="Workspace assistant">
@@ -120,7 +120,7 @@
                 <button class="workspace-assistant-close" id="assistantCloseBtn" type="button">Close</button>
               </div>
               <p class="workspace-assistant-copy" id="assistantContextSummary">
-                The assistant follows your cursor and prioritizes nearby cards, selected nodes, and connected context.
+                The assistant prioritizes nearby cards, selected nodes, and connected context.
               </p>
               <div class="assistant-starters" id="assistantStarters"></div>
               <div class="assistant-thread" id="assistantMessages"></div>

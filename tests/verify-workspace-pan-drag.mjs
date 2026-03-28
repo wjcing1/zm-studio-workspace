@@ -3,7 +3,7 @@ import process from "node:process";
 
 const CODEX_HOME = process.env.CODEX_HOME || `${process.env.HOME}/.codex`;
 const PWCLI = `${CODEX_HOME}/skills/playwright/scripts/playwright_cli.sh`;
-const SESSION = `verify_workspace_pan_${process.pid}_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+const SESSION = `wwm_${process.pid}_${Date.now().toString(36)}_${Math.floor(Math.random() * 1000)}`;
 const PORT = 4173;
 const PAGE_URL = `http://127.0.0.1:${PORT}/workspace.html`;
 
@@ -72,34 +72,17 @@ async function main() {
           const viewport = document.getElementById("canvasViewport");
           const stage = document.getElementById("canvasStage");
           const marquee = document.getElementById("marqueeSelection");
-          const rect = viewport.getBoundingClientRect();
-
-          function isInteractive(element) {
-            return Boolean(
-              element?.closest?.(
-                ".canvas-node, .canvas-context-shell, #canvasContextToggle, #canvasToolbar, .canvas-hud, #workspaceAssistantPanel, #assistantCompanion",
-              ),
-            );
-          }
-
-          function findBlankPoint() {
-            for (let y = Math.round(rect.top + rect.height * 0.45); y < rect.bottom - 40; y += 24) {
-              for (let x = Math.round(rect.left + rect.width * 0.55); x < rect.right - 40; x += 24) {
-                const element = document.elementFromPoint(x, y);
-                if (element && !isInteractive(element)) {
-                  return { x, y };
-                }
-              }
-            }
-
-            return {
-              x: Math.round(rect.left + rect.width * 0.75),
-              y: Math.round(rect.top + rect.height * 0.6),
-            };
-          }
-
-          const point = findBlankPoint();
+          const introNode = stage.querySelector('.canvas-node[data-id="intro"]');
+          const introRect = introNode.getBoundingClientRect();
           const before = stage.style.transform;
+          const start = {
+            x: Math.max(introRect.left - 60, viewport.getBoundingClientRect().left + 20),
+            y: Math.max(introRect.top - 50, viewport.getBoundingClientRect().top + 20),
+          };
+          const end = {
+            x: Math.min(introRect.right + 16, viewport.getBoundingClientRect().right - 20),
+            y: Math.min(introRect.bottom + 16, viewport.getBoundingClientRect().bottom - 20),
+          };
 
           function fire(type, x, y, buttons) {
             viewport.dispatchEvent(
@@ -115,9 +98,16 @@ async function main() {
             );
           }
 
-          fire("pointerdown", point.x, point.y, 1);
-          fire("pointermove", point.x + 140, point.y + 48, 1);
-          fire("pointerup", point.x + 140, point.y + 48, 0);
+          fire("pointerdown", start.x, start.y, 1);
+          fire("pointermove", end.x, end.y, 1);
+
+          const marqueeWhileDragging = {
+            hidden: marquee.hidden,
+            width: marquee.style.width,
+            height: marquee.style.height,
+          };
+
+          fire("pointerup", end.x, end.y, 0);
 
           await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
@@ -125,23 +115,28 @@ async function main() {
             before,
             after: stage.style.transform,
             changed: before !== stage.style.transform,
-            marqueeVisible: !marquee.hidden,
+            marqueeWhileDragging,
+            selectedIds: [...stage.querySelectorAll(".canvas-node.is-selected")].map((node) => node.dataset.id),
           };
         }`,
       ]),
     );
 
-    if (!result.changed) {
+    if (result.changed) {
       throw new Error(
-        `Dragging empty canvas should pan the viewport. Before: ${result.before} After: ${result.after}`,
+        `Dragging a blank area should keep the camera stable for marquee selection. Before: ${result.before} After: ${result.after}`,
       );
     }
 
-    if (result.marqueeVisible) {
-      throw new Error("Dragging empty canvas for panning should not leave the marquee selection visible.");
+    if (result.marqueeWhileDragging.hidden) {
+      throw new Error("Dragging a blank area should show the marquee selection box while selecting.");
     }
 
-    console.log("PASS: dragging empty canvas pans the viewport.");
+    if (!result.selectedIds.includes("intro")) {
+      throw new Error(`Dragging a blank area across the intro node should select it. Selected: ${result.selectedIds.join(", ")}`);
+    }
+
+    console.log("PASS: dragging a blank canvas area creates a marquee selection.");
   } finally {
     try {
       runPw(["close"]);

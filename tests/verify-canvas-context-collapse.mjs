@@ -20,9 +20,10 @@ async function main() {
     },
     {
       ok:
-        appSource.includes('state.interaction.mode = "pan"') &&
+        appSource.includes('beginUndoableInteraction("pan"') &&
+        appSource.includes('state.interaction.mode === "pan"') &&
         appSource.includes("collapseCanvasContext()"),
-      message: "Workspace canvas should collapse the context shell when canvas panning begins.",
+      message: "Workspace canvas should collapse the context shell when camera navigation begins.",
     },
     {
       ok: styleSource.includes(".canvas-viewport.is-context-collapsed .canvas-context-shell"),

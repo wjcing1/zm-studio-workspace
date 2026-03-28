@@ -3,15 +3,18 @@ import {
   cloneValue,
   createBoardRegistry,
   escapeHtml,
+  getCollaborationConfig,
   getProject,
   hydrateBoardFromCloud,
   icon,
   nl2br,
   persistBoard,
   projectDatabase,
+  registerRealtimeBoardSync,
   studioData,
 } from "./shared/studio-data-client.js";
 import {
+  applyBoardSnapshot,
   applyBoardOperations,
   collectNearbyNodes,
   createBoardSnapshot,
@@ -24,6 +27,18 @@ import {
   resolveNodeHeight,
   undoBoard,
 } from "./shared/workspace-board.js";
+import {
+  Y,
+  WebsocketProvider,
+} from "./shared/workspace-collaboration-vendor.js";
+import {
+  applyBoardPayloadToDoc,
+  boardPayloadEquals,
+  collectPresenceStates,
+  createCollaborationPayloadFromBoard,
+  normalizePresenceState,
+  readBoardPayloadFromDoc,
+} from "./shared/workspace-collaboration.js";
 import { setupWebApp } from "./shared/register-web-app.js";
 
 setupWebApp();
@@ -36,6 +51,12 @@ const WORKSPACE_STARTERS = [
 
 const state = {
   boards: createBoardRegistry(),
+  collaboration: {
+    localPeer: null,
+    status: "idle",
+    remotePeers: [],
+    mode: "disabled",
+  },
   canvasContext: {
     mode: "overview",
     projectId: null,
@@ -92,10 +113,18 @@ const state = {
   },
 };
 
+const PRESENCE_SYNC_DELAY_MS = 40;
+const LOCAL_COLLABORATOR_STORAGE_KEY = "zm-studio-collaborator";
+const COLLABORATION_LOCAL_ORIGIN = Symbol("collaboration-local");
+let activeCollaborationSession = null;
+let pendingPresenceOverrides = {};
+let presenceSyncTimer = null;
+
 const canvasViewport = document.getElementById("canvasViewport");
 const canvasGrid = document.getElementById("canvasGrid");
 const canvasConnections = document.getElementById("canvasConnections");
 const canvasStage = document.getElementById("canvasStage");
+const collaborationPresenceLayer = document.getElementById("collaborationPresenceLayer");
 const canvasBreadcrumb = document.getElementById("canvasBreadcrumb");
 const canvasContextKicker = document.getElementById("canvasContextKicker");
 const canvasContextTitle = document.getElementById("canvasContextTitle");
@@ -109,6 +138,7 @@ const marqueeSelection = document.getElementById("marqueeSelection");
 const zoomValue = document.querySelector("#zoomValue span");
 const resetViewBtn = document.getElementById("resetViewBtn");
 const assistantToggleBtn = document.getElementById("assistantToggleBtn");
+const collaborationStatus = document.getElementById("collaborationStatus");
 const assistantCompanion = document.getElementById("assistantCompanion");
 const workspaceAssistantPanel = document.getElementById("workspaceAssistantPanel");
 const assistantCloseBtn = document.getElementById("assistantCloseBtn");
@@ -128,6 +158,387 @@ const redoCanvasBtn = document.getElementById("redoCanvasBtn");
 const canvasImportBtn = document.getElementById("canvasImportBtn");
 const canvasExportBtn = document.getElementById("canvasExportBtn");
 
+function createLocalCollaborator() {
+  const palette = ["#6ee7b7", "#60a5fa", "#f97316", "#facc15", "#f472b6", "#22d3ee"];
+  const prefixes = ["Atlas", "Comet", "North", "Echo", "Mosaic", "Orbit"];
+  const suffixes = ["Team", "Studio", "Desk", "Flow", "Board", "Lab"];
+
+  try {
+    const stored = window.localStorage.getItem(LOCAL_COLLABORATOR_STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (typeof parsed?.name === "string" && typeof parsed?.color === "string") {
+        return parsed;
+      }
+    }
+  } catch {}
+
+  const index = Math.floor(Math.random() * palette.length);
+  const peer = {
+    name: `${prefixes[index % prefixes.length]} ${suffixes[(index + 2) % suffixes.length]}`,
+    color: palette[index],
+  };
+
+  try {
+    window.localStorage.setItem(LOCAL_COLLABORATOR_STORAGE_KEY, JSON.stringify(peer));
+  } catch {}
+
+  return peer;
+}
+
+state.collaboration.localPeer = createLocalCollaborator();
+
+function collaborationWebsocketUrl(config) {
+  const endpoint = config?.endpoints?.realtime || "/api/collaboration/ws";
+  const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${wsProtocol}//${window.location.host}${endpoint}`;
+}
+
+function isRealtimeCollaborationEnabled(config) {
+  return Boolean(config?.mode === "server" && config?.features?.realtime && config?.endpoints?.realtime);
+}
+
+function syncCollaborationDebug() {
+  window.__workspaceCollaboration = {
+    boardKey: getActiveBoardKey(),
+    mode: state.collaboration.mode,
+    status: state.collaboration.status,
+    remotePeerCount: state.collaboration.remotePeers.length,
+  };
+}
+
+function renderCollaborationStatus() {
+  if (!collaborationStatus) return;
+
+  collaborationStatus.dataset.state = state.collaboration.status;
+
+  const remoteCount = state.collaboration.remotePeers.length;
+  if (state.collaboration.status === "connected") {
+    collaborationStatus.textContent = remoteCount > 0 ? `${remoteCount + 1} live` : "Realtime live";
+  } else if (state.collaboration.status === "connecting") {
+    collaborationStatus.textContent = "Realtime connecting";
+  } else if (state.collaboration.status === "disabled") {
+    collaborationStatus.textContent = "Realtime off";
+  } else {
+    collaborationStatus.textContent = "Realtime idle";
+  }
+
+  syncCollaborationDebug();
+}
+
+function setCollaborationStatus(status, mode = state.collaboration.mode) {
+  state.collaboration.status = status;
+  state.collaboration.mode = mode;
+  renderCollaborationStatus();
+}
+
+function currentEditingPresence() {
+  const activeElement = document.activeElement;
+
+  if (activeElement?.matches?.("[data-text-node]")) {
+    return {
+      nodeId: activeElement.dataset.textNode,
+      field: "content",
+    };
+  }
+
+  if (activeElement?.matches?.("[data-link-field]")) {
+    return {
+      nodeId: activeElement.dataset.nodeId,
+      field: activeElement.dataset.linkField || "",
+    };
+  }
+
+  if (activeElement?.matches?.("[data-group-field]")) {
+    return {
+      nodeId: activeElement.dataset.nodeId,
+      field: activeElement.dataset.groupField || "",
+    };
+  }
+
+  return null;
+}
+
+function buildLocalPresenceState(overrides = {}) {
+  return normalizePresenceState({
+    user: state.collaboration.localPeer,
+    cursor: Object.prototype.hasOwnProperty.call(overrides, "cursor")
+      ? overrides.cursor
+      : {
+          x: state.pointer.worldX,
+          y: state.pointer.worldY,
+        },
+    selection: Object.prototype.hasOwnProperty.call(overrides, "selection")
+      ? overrides.selection
+      : {
+          nodeIds: [...state.selection.nodeIds],
+        },
+    editing: Object.prototype.hasOwnProperty.call(overrides, "editing") ? overrides.editing : currentEditingPresence(),
+  });
+}
+
+function flushLocalPresenceSync() {
+  presenceSyncTimer = null;
+  if (!activeCollaborationSession) return;
+
+  const nextPresence = buildLocalPresenceState(pendingPresenceOverrides);
+  pendingPresenceOverrides = {};
+  const nextJson = JSON.stringify(nextPresence);
+
+  if (nextJson === activeCollaborationSession.lastPresenceJson) {
+    return;
+  }
+
+  activeCollaborationSession.lastPresenceJson = nextJson;
+  activeCollaborationSession.awareness.setLocalState(nextPresence);
+}
+
+function scheduleLocalPresenceSync(overrides = {}) {
+  pendingPresenceOverrides = {
+    ...pendingPresenceOverrides,
+    ...overrides,
+  };
+
+  if (presenceSyncTimer) {
+    return;
+  }
+
+  presenceSyncTimer = window.setTimeout(flushLocalPresenceSync, PRESENCE_SYNC_DELAY_MS);
+}
+
+function clearLocalPresenceSync() {
+  pendingPresenceOverrides = {};
+  if (presenceSyncTimer) {
+    window.clearTimeout(presenceSyncTimer);
+    presenceSyncTimer = null;
+  }
+}
+
+function applyRealtimePayloadToBoard(board, payload) {
+  const nextPayload = payload || readBoardPayloadFromDoc(activeCollaborationSession.doc, {
+    fallback: createCollaborationPayloadFromBoard(board, {
+      includeCamera: true,
+    }),
+  });
+  const currentPayload = {
+    ...createCollaborationPayloadFromBoard(board, {
+      fallback: nextPayload,
+      includeCamera: false,
+    }),
+    camera: nextPayload.camera,
+  };
+
+  if (boardPayloadEquals(nextPayload, currentPayload, { includeCamera: false })) {
+    return;
+  }
+
+  board.title = nextPayload.title;
+  board.description = nextPayload.description;
+  board.projectId = nextPayload.projectId || board.projectId || null;
+  applyBoardSnapshot(board, {
+    camera: board.camera,
+    nodes: nextPayload.nodes,
+    edges: nextPayload.edges,
+  });
+  state.selection.nodeIds = state.selection.nodeIds.filter((nodeId) => board.nodes.some((node) => node.id === nodeId));
+  if (state.ui.selectedEdgeId && !board.edges.some((edge) => edge.id === state.ui.selectedEdgeId)) {
+    state.ui.selectedEdgeId = null;
+  }
+  renderCanvas();
+}
+
+function renderCollaborationPresence(board = getActiveBoard()) {
+  if (!collaborationPresenceLayer || !board) return;
+
+  const peers = state.collaboration.remotePeers;
+  collaborationPresenceLayer.innerHTML = peers
+    .flatMap((peer) => {
+      const fragments = [];
+
+      if (peer.cursor) {
+        const screenX = board.camera.x + peer.cursor.x * board.camera.z;
+        const screenY = board.camera.y + peer.cursor.y * board.camera.z;
+        fragments.push(`
+          <div class="collaboration-cursor" data-client-id="${peer.clientId}" style="left:${screenX}px;top:${screenY}px;--peer-color:${escapeHtml(peer.user.color)};">
+            <span class="collaboration-cursor-dot"></span>
+            <span class="collaboration-cursor-label">${escapeHtml(peer.user.name)}</span>
+          </div>
+        `);
+      }
+
+      for (const nodeId of peer.selection.nodeIds) {
+        const node = board.nodes.find((candidate) => candidate.id === nodeId);
+        if (!node) continue;
+
+        const frame = getNodeFrame(node);
+        fragments.push(`
+          <div
+            class="collaboration-selection"
+            data-client-id="${peer.clientId}"
+            data-node-id="${escapeHtml(nodeId)}"
+            style="left:${board.camera.x + frame.x * board.camera.z}px;top:${board.camera.y + frame.y * board.camera.z}px;width:${frame.width * board.camera.z}px;height:${frame.height * board.camera.z}px;--peer-color:${escapeHtml(peer.user.color)};"
+          >
+            <span class="collaboration-selection-label">${escapeHtml(peer.user.name)}</span>
+          </div>
+        `);
+      }
+
+      if (peer.editing?.nodeId) {
+        const node = board.nodes.find((candidate) => candidate.id === peer.editing.nodeId);
+        if (node) {
+          const frame = getNodeFrame(node);
+          const badgeLeft = board.camera.x + (frame.x + frame.width) * board.camera.z - 10;
+          const badgeTop = board.camera.y + frame.y * board.camera.z - 12;
+          fragments.push(`
+            <div
+              class="collaboration-editing-badge"
+              data-client-id="${peer.clientId}"
+              data-node-id="${escapeHtml(peer.editing.nodeId)}"
+              style="left:${badgeLeft}px;top:${badgeTop}px;--peer-color:${escapeHtml(peer.user.color)};"
+            >
+              ${escapeHtml(peer.user.name)} editing
+            </div>
+          `);
+        }
+      }
+
+      return fragments;
+    })
+    .join("");
+
+  renderCollaborationStatus();
+}
+
+function destroyActiveCollaborationSession(nextStatus = "idle") {
+  clearLocalPresenceSync();
+
+  if (!activeCollaborationSession) {
+    state.collaboration.remotePeers = [];
+    setCollaborationStatus(nextStatus);
+    return;
+  }
+
+  registerRealtimeBoardSync(activeCollaborationSession.boardKey, null);
+
+  try {
+    activeCollaborationSession.awareness.setLocalState(null);
+  } catch {}
+
+  activeCollaborationSession.provider.destroy();
+  activeCollaborationSession.doc.destroy();
+  activeCollaborationSession = null;
+  state.collaboration.remotePeers = [];
+  setCollaborationStatus(nextStatus);
+  renderCollaborationPresence();
+}
+
+function createRealtimeSession(board, config) {
+  const doc = new Y.Doc();
+  const provider = new WebsocketProvider(collaborationWebsocketUrl(config), board.key, doc, {
+    disableBc: true,
+  });
+
+  const session = {
+    boardKey: board.key,
+    board,
+    doc,
+    provider,
+    awareness: provider.awareness,
+    lastPresenceJson: "",
+    synced: false,
+    pushBoard(nextBoard) {
+      const currentPayload = readBoardPayloadFromDoc(doc, {
+        fallback: createCollaborationPayloadFromBoard(nextBoard, {
+          includeCamera: true,
+        }),
+      });
+      const nextPayload = {
+        ...currentPayload,
+        ...createCollaborationPayloadFromBoard(nextBoard, {
+          fallback: currentPayload,
+          includeCamera: false,
+        }),
+        camera: currentPayload.camera,
+      };
+
+      if (boardPayloadEquals(currentPayload, nextPayload, { includeCamera: false })) {
+        return;
+      }
+
+      applyBoardPayloadToDoc(doc, nextPayload, {
+        origin: COLLABORATION_LOCAL_ORIGIN,
+        includeCamera: true,
+      });
+    },
+  };
+
+  doc.on("update", (_update, origin) => {
+    if (activeCollaborationSession !== session || origin === COLLABORATION_LOCAL_ORIGIN) {
+      return;
+    }
+
+    applyRealtimePayloadToBoard(board);
+  });
+
+  provider.awareness.on("update", () => {
+    if (activeCollaborationSession !== session) {
+      return;
+    }
+
+    state.collaboration.remotePeers = collectPresenceStates(provider.awareness, doc.clientID);
+    renderCollaborationPresence(board);
+  });
+
+  provider.on("status", ({ status }) => {
+    if (activeCollaborationSession !== session) {
+      return;
+    }
+
+    setCollaborationStatus(status === "connected" && session.synced ? "connected" : status, "realtime");
+  });
+
+  provider.on("sync", (synced) => {
+    session.synced = synced;
+    if (activeCollaborationSession !== session) {
+      return;
+    }
+
+    setCollaborationStatus(synced ? "connected" : "connecting", "realtime");
+    applyRealtimePayloadToBoard(board);
+    scheduleLocalPresenceSync();
+  });
+
+  return session;
+}
+
+async function ensureRealtimeSession(board) {
+  const config = await getCollaborationConfig();
+
+  if (!isRealtimeCollaborationEnabled(config)) {
+    destroyActiveCollaborationSession("disabled");
+    return null;
+  }
+
+  if (activeCollaborationSession?.boardKey === board.key) {
+    activeCollaborationSession.board = board;
+    registerRealtimeBoardSync(board.key, (nextBoard) => activeCollaborationSession?.pushBoard(nextBoard));
+    setCollaborationStatus(
+      activeCollaborationSession.synced ? "connected" : activeCollaborationSession.provider.wsconnected ? "connecting" : "idle",
+      "realtime",
+    );
+    scheduleLocalPresenceSync();
+    return activeCollaborationSession;
+  }
+
+  destroyActiveCollaborationSession("connecting");
+
+  activeCollaborationSession = createRealtimeSession(board, config);
+  registerRealtimeBoardSync(board.key, (nextBoard) => activeCollaborationSession?.pushBoard(nextBoard));
+  setCollaborationStatus("connecting", "realtime");
+  scheduleLocalPresenceSync();
+  return activeCollaborationSession;
+}
+
 function getActiveBoardKey() {
   return state.canvasContext.mode === "project" && state.canvasContext.projectId
     ? state.canvasContext.projectId
@@ -145,6 +556,13 @@ function persistActiveBoard() {
 async function syncBoardFromCloud(board = getActiveBoard()) {
   if (!board) return;
 
+  const config = await getCollaborationConfig();
+  if (isRealtimeCollaborationEnabled(config)) {
+    await ensureRealtimeSession(board);
+    return;
+  }
+
+  destroyActiveCollaborationSession("disabled");
   const boardKey = board.key;
   const payload = await hydrateBoardFromCloud(board);
 
@@ -176,6 +594,12 @@ function setSelectedNodes(nodeIds, options = {}) {
     state.ui.selectedEdgeId = null;
   }
 
+  scheduleLocalPresenceSync({
+    selection: {
+      nodeIds: [...state.selection.nodeIds],
+    },
+  });
+
   if (options.render !== false) {
     renderCanvas();
   }
@@ -197,12 +621,22 @@ function clearSelection(options = {}) {
   if (!options.preserveEdgeSelection) {
     state.ui.selectedEdgeId = null;
   }
+  scheduleLocalPresenceSync({
+    selection: {
+      nodeIds: [],
+    },
+  });
   renderCanvas();
 }
 
 function selectEdge(edgeId) {
   state.ui.selectedEdgeId = edgeId || null;
   state.selection.nodeIds = [];
+  scheduleLocalPresenceSync({
+    selection: {
+      nodeIds: [],
+    },
+  });
   renderCanvas();
 }
 
@@ -261,6 +695,9 @@ function syncPointer(clientX, clientY, eventTarget = null) {
   state.pointer.worldX = world.x;
   state.pointer.worldY = world.y;
   state.ui.hoveredNodeId = resolveHoveredNodeId(clientX, clientY, eventTarget);
+  scheduleLocalPresenceSync({
+    cursor: world,
+  });
   renderAssistantContext();
 }
 
@@ -560,6 +997,7 @@ function renderCanvas() {
     .join("");
 
   renderMarqueeSelection();
+  renderCollaborationPresence(board);
   renderAssistantContext();
 }
 
@@ -1573,6 +2011,11 @@ canvasViewport.addEventListener("pointerdown", (event) => {
     if (nodeId && !state.selection.nodeIds.includes(nodeId)) {
       state.selection.nodeIds = [nodeId];
       state.ui.selectedEdgeId = null;
+      scheduleLocalPresenceSync({
+        selection: {
+          nodeIds: [nodeId],
+        },
+      });
     }
     return;
   }
@@ -1701,6 +2144,9 @@ canvasViewport.addEventListener("pointercancel", (event) => {
 });
 
 canvasViewport.addEventListener("pointerleave", (event) => {
+  scheduleLocalPresenceSync({
+    cursor: null,
+  });
   if (state.interaction.mode && !canvasViewport.hasPointerCapture(event.pointerId)) {
     endCanvasInteraction();
   }
@@ -1767,6 +2213,11 @@ canvasConnections.addEventListener("click", (event) => {
 
   state.ui.selectedEdgeId = edgeElement.dataset.edgeId || null;
   state.selection.nodeIds = [];
+  scheduleLocalPresenceSync({
+    selection: {
+      nodeIds: [],
+    },
+  });
   renderCanvas();
 });
 
@@ -1774,6 +2225,9 @@ canvasStage.addEventListener("focusin", (event) => {
   if (!event.target.matches("[data-text-node], [data-link-field], [data-group-field]")) return;
   state.editing.snapshot = createBoardSnapshot(getActiveBoard());
   state.editing.dirty = false;
+  scheduleLocalPresenceSync({
+    editing: currentEditingPresence(),
+  });
 });
 
 canvasStage.addEventListener("focusout", (event) => {
@@ -1784,6 +2238,9 @@ canvasStage.addEventListener("focusout", (event) => {
   }
   state.editing.snapshot = null;
   state.editing.dirty = false;
+  scheduleLocalPresenceSync({
+    editing: null,
+  });
 });
 
 canvasStage.addEventListener("input", (event) => {
@@ -1810,6 +2267,9 @@ canvasStage.addEventListener("input", (event) => {
   }
 
   state.editing.dirty = true;
+  scheduleLocalPresenceSync({
+    editing: currentEditingPresence(),
+  });
   persistActiveBoard();
 });
 
@@ -1885,6 +2345,12 @@ window.addEventListener("keydown", (event) => {
     state.selection.nodeIds = [];
     state.ui.selectedEdgeId = null;
     state.selection.marquee = null;
+    scheduleLocalPresenceSync({
+      selection: {
+        nodeIds: [],
+      },
+      editing: null,
+    });
     if (state.ui.isAssistantOpen) {
       closeAssistantPanel();
       return;
@@ -1893,8 +2359,13 @@ window.addEventListener("keydown", (event) => {
   }
 });
 
+window.addEventListener("beforeunload", () => {
+  destroyActiveCollaborationSession("idle");
+});
+
 applyInitialRoute();
 syncRoute();
 renderAssistantThread();
+renderCollaborationStatus();
 renderCanvas();
 syncBoardFromCloud(getActiveBoard());

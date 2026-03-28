@@ -17,13 +17,14 @@ export function getCollaborationConfig(env = process.env, rootDir = process.cwd(
     storageDir,
     features: {
       persistence: true,
-      realtime: asBoolean(env.COLLAB_REALTIME, false),
-      presence: asBoolean(env.COLLAB_PRESENCE, false),
+      realtime: asBoolean(env.COLLAB_REALTIME, true),
+      presence: asBoolean(env.COLLAB_PRESENCE, true),
       localCache: asBoolean(env.COLLAB_LOCAL_CACHE, true),
     },
     endpoints: {
       config: "/api/collaboration/config",
       boards: "/api/boards/:boardId",
+      realtime: "/api/collaboration/ws",
     },
   };
 }

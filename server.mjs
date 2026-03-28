@@ -6,6 +6,7 @@ import process from "node:process";
 import OpenAI from "openai";
 import { createBoardStore } from "./board-store.mjs";
 import { getCollaborationConfig } from "./collaboration-config.mjs";
+import { createRealtimeCollaborationServer } from "./realtime-collaboration-server.mjs";
 import { studioData } from "./studio-data.mjs";
 
 const ROOT_DIR = process.cwd();
@@ -48,6 +49,10 @@ const collaborationConfig = getCollaborationConfig(process.env, ROOT_DIR);
 const boardStore = createBoardStore({
   provider: collaborationConfig.provider,
   storageDir: collaborationConfig.storageDir,
+});
+const collaborationServer = createRealtimeCollaborationServer({
+  boardStore,
+  config: collaborationConfig,
 });
 const client = process.env.MINIMAX_API_KEY
   ? new OpenAI({
@@ -475,7 +480,7 @@ async function handleWorkspaceAssistant(request, response) {
 }
 
 async function handleBoardGet(response, boardId) {
-  const payload = await boardStore.getBoard(boardId);
+  const payload = await collaborationServer.getBoard(boardId);
 
   if (!payload) {
     sendJson(response, 404, { error: `Board ${boardId} was not found.` });
@@ -500,7 +505,7 @@ async function handleBoardPut(request, response, boardId) {
   }
 
   try {
-    const payload = await boardStore.saveBoard(boardId, body.board);
+    const payload = await collaborationServer.saveBoard(boardId, body.board);
     sendJson(response, 200, payload);
   } catch (error) {
     if (error && typeof error === "object" && "code" in error && error.code === "BOARD_NOT_FOUND") {
@@ -602,12 +607,21 @@ const server = http.createServer(async (request, response) => {
   sendText(response, 405, "Method Not Allowed");
 });
 
+server.on("upgrade", (request, socket, head) => {
+  if (collaborationServer.handleUpgrade(request, socket, head)) {
+    return;
+  }
+
+  socket.destroy();
+});
+
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`ZM Studio server running at http://127.0.0.1:${PORT}`);
 });
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => {
+    collaborationServer.close();
     server.close(() => process.exit(0));
   });
 }

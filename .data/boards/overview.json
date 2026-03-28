@@ -1,0 +1,108 @@
+{
+  "board": {
+    "key": "overview",
+    "projectId": null,
+    "title": "Studio Canvas",
+    "description": "A spatial snapshot of the studio's current body of work. Each project node opens its own dedicated board.",
+    "camera": {
+      "x": 96,
+      "y": 84,
+      "z": 0.82
+    },
+    "nodes": [
+      {
+        "id": "intro",
+        "type": "text",
+        "x": 150,
+        "y": 120,
+        "w": 360,
+        "h": "auto",
+        "content": "Projects and canvases are now connected.\n\n- click any project card to open its board\n- or jump in from the Projects table\n- double click anywhere to add a note\nPresence test\nPresence test\nPresence test\nPresence test\nPresence test"
+      },
+      {
+        "id": "projects-cta",
+        "type": "text",
+        "x": 160,
+        "y": 470,
+        "w": 330,
+        "h": "auto",
+        "content": "How to Use This Board\n\nCanvas keeps the spatial overview.\nProjects acts as the ledger.\nAssets stores reusable materials.\n\nEach project has its own canvas now."
+      },
+      {
+        "id": "media",
+        "type": "image",
+        "x": 1120,
+        "y": 520,
+        "w": 330,
+        "h": 230,
+        "content": "https://images.unsplash.com/photo-1518773553398-650c184e0bb3?q=80&w=1200&auto=format&fit=crop"
+      },
+      {
+        "id": "overview-PRJ-001",
+        "type": "project",
+        "projectId": "PRJ-001",
+        "x": 610,
+        "y": 120,
+        "w": 360,
+        "h": "auto",
+        "title": "Neon Genesis Rebrand",
+        "desc": "Tokyo, Japan • In Progress\nA full rebrand for a robotics and sensing company, combining a sharper visual identity with a cinematic launch site and motion language.",
+        "tags": [
+          "Brand system",
+          "Launch microsite",
+          "3D motion direction"
+        ]
+      },
+      {
+        "id": "overview-PRJ-002",
+        "type": "project",
+        "projectId": "PRJ-002",
+        "x": 1080,
+        "y": 150,
+        "w": 360,
+        "h": "auto",
+        "title": "Dark Matter E-commerce",
+        "desc": "Milan, Italy • Completed\nA minimal commerce experience built around typography, dramatic pacing, and restrained product storytelling for a fashion-tech label.",
+        "tags": [
+          "E-commerce UX",
+          "Visual system",
+          "Content direction"
+        ]
+      },
+      {
+        "id": "overview-PRJ-003",
+        "type": "project",
+        "projectId": "PRJ-003",
+        "x": 690,
+        "y": 470,
+        "w": 360,
+        "h": "auto",
+        "title": "Spatial OS Prototype",
+        "desc": "Remote, based in Rome • On Hold\nAn internal exploration into canvas-native portfolio interfaces, experimental navigation, and data-dense storytelling for the web.",
+        "tags": [
+          "Product concept",
+          "Interaction prototype",
+          "WebGL studies"
+        ]
+      },
+      {
+        "id": "overview-PRJ-004",
+        "type": "project",
+        "projectId": "PRJ-004",
+        "x": 1180,
+        "y": 820,
+        "w": 360,
+        "h": "auto",
+        "title": "Lumina Data Viz",
+        "desc": "New York, USA • In Progress\nA premium data-visualization platform and stakeholder demo system for executive storytelling, real-time dashboards, and investor presentations.",
+        "tags": [
+          "Dashboard UX",
+          "Data visualization system",
+          "Presentation mode"
+        ]
+      }
+    ],
+    "edges": []
+  },
+  "savedAt": "2026-03-28T10:18:44.144Z"
+}

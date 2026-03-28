@@ -28,6 +28,14 @@ async function main() {
       ok: source.includes('src="./scripts/workspace-page.js?v='),
       message: "workspace.html should load the versioned page-specific workspace script.",
     },
+    {
+      ok: source.includes('id="collaborationPresenceLayer"'),
+      message: "workspace.html should expose a dedicated collaboration presence layer.",
+    },
+    {
+      ok: source.includes('id="collaborationStatus"'),
+      message: "workspace.html should expose a collaboration status pill.",
+    },
   ];
 
   const failures = checks.filter((check) => !check.ok);

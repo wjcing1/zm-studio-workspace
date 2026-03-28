@@ -29,12 +29,14 @@ const DEFAULT_COLLABORATION_CONFIG = {
   endpoints: {
     config: "/api/collaboration/config",
     boards: "/api/boards/:boardId",
+    realtime: "/api/collaboration/ws",
   },
 };
 
 let collaborationConfigPromise = null;
 const hydrationPromises = new Map();
 const pendingBoardSaves = new Map();
+const realtimeBoardSaves = new Map();
 
 export function defaultViewportCamera() {
   return {
@@ -269,6 +271,23 @@ export async function getCollaborationConfig() {
   return collaborationConfigPromise;
 }
 
+export function registerRealtimeBoardSync(boardKey, handler) {
+  if (!boardKey) return;
+
+  const pending = pendingBoardSaves.get(boardKey);
+  if (pending?.timer) {
+    window.clearTimeout(pending.timer);
+  }
+  pendingBoardSaves.delete(boardKey);
+
+  if (typeof handler === "function") {
+    realtimeBoardSaves.set(boardKey, handler);
+    return;
+  }
+
+  realtimeBoardSaves.delete(boardKey);
+}
+
 export async function hydrateBoardFromCloud(board) {
   if (!board?.key || hydrationPromises.has(board.key)) {
     return hydrationPromises.get(board?.key) || null;
@@ -376,6 +395,12 @@ export function persistBoard(board) {
   if (!board) return;
 
   writeStorage(boardStorageKey(board.key), JSON.stringify(createBoardSnapshot(board)));
+
+  const realtimeSync = realtimeBoardSaves.get(board.key);
+  if (typeof realtimeSync === "function") {
+    realtimeSync(board);
+    return;
+  }
 
   const pending = pendingBoardSaves.get(board.key);
   if (pending?.timer) {

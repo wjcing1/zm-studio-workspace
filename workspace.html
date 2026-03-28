@@ -15,7 +15,7 @@
     <link rel="icon" href="./icons/app-icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="./icons/app-icon.svg" />
     <link rel="stylesheet" href="./styles/shared.css?v=2026-03-27-nav-1" />
-    <link rel="stylesheet" href="./styles/workspace.css?v=2026-03-28-workspace-copilot-1" />
+    <link rel="stylesheet" href="./styles/workspace.css?v=2026-03-28-realtime-collaboration-1" />
   </head>
   <body data-page="zm-workspace">
     <div class="app-shell">
@@ -98,6 +98,7 @@
             <div class="canvas-grid" id="canvasGrid"></div>
             <svg class="canvas-connections" id="canvasConnections" aria-hidden="true"></svg>
             <div class="canvas-stage" id="canvasStage"></div>
+            <div class="collaboration-presence-layer" id="collaborationPresenceLayer" aria-hidden="true"></div>
             <div class="marquee-selection" id="marqueeSelection" hidden></div>
 
             <button
@@ -153,6 +154,7 @@
                 </svg>
                 <span>100%</span>
               </div>
+              <div class="hud-pill collaboration-status" id="collaborationStatus" data-state="idle">Realtime idle</div>
               <button class="hud-btn" id="resetViewBtn" type="button">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="m8 3 8 9-5 1 2 8-8-9 5-1Z"></path>
@@ -166,6 +168,6 @@
       </main>
     </div>
 
-    <script type="module" src="./scripts/workspace-page.js?v=2026-03-28-workspace-copilot-1"></script>
+    <script type="module" src="./scripts/workspace-page.js?v=2026-03-28-realtime-collaboration-1"></script>
   </body>
 </html>

@@ -66,12 +66,20 @@ async function main() {
       throw new Error("Collaboration config should advertise persistence support.");
     }
 
-    if (payload.features.realtime !== false) {
-      throw new Error("Collaboration config should default realtime to false in the first server-backed slice.");
+    if (payload.features.realtime !== true) {
+      throw new Error("Collaboration config should default realtime to true once websocket sync is available.");
+    }
+
+    if (payload.features.presence !== true) {
+      throw new Error("Collaboration config should default presence to true once awareness is available.");
     }
 
     if (payload.features.localCache !== true) {
       throw new Error("Collaboration config should keep local cache support enabled.");
+    }
+
+    if (payload.endpoints?.realtime !== "/api/collaboration/ws") {
+      throw new Error(`Expected realtime endpoint to be \"/api/collaboration/ws\", got ${payload.endpoints?.realtime}`);
     }
 
     console.log("PASS: collaboration config API contract is valid.");

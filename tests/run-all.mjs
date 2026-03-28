@@ -17,6 +17,7 @@ const checks = [
   ["node", ["tests/verify-workspace-edge-connect.mjs"]],
   ["node", ["tests/verify-workspace-touch-gestures.mjs"]],
   ["node", ["tests/verify-workspace-text-edit.mjs"]],
+  ["node", ["tests/verify-realtime-collaboration-ui.mjs"]],
   ["node", ["tests/verify-chat-ui.mjs"]],
   ["node", ["tests/verify-overview-title-removed.mjs"]],
   ["node", ["tests/verify-canvas-context-collapse.mjs"]],

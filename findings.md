@@ -1,46 +1,46 @@
 # Findings & Decisions
 
 ## Requirements
-- The user wants the project to evolve into a Web App for employees, reachable over the public internet.
-- The user wants the legacy `222.html` name replaced with a real page name.
-- The user wants the current monolithic page structure split so each primary page has its own code.
-- Login is planned for a later phase, so this refactor should prepare for future auth instead of implementing it now.
+- The user wants "花布" to gain cloud persistence.
+- The product direction is toward a multi-user collaboration platform, not a single-user demo.
+- The user explicitly chose realtime multi-user collaboration as the target state from the beginning.
+- The backend choice can be flexible, but the architecture should be robust enough to support `Postgres + Yjs/Hocuspocus + object storage`.
 
 ## Research Findings
-- The current app still keeps canvas, projects, and assets inside one large HTML shell plus one large client script.
-- The current splash flow points into `222.html`, so renaming the main page requires updating the splash target too.
-- There is currently no `manifest`, `service worker`, install prompt, or mobile Web App metadata in the project.
-- The current Node server is already sufficient for static assets plus `/api/chat`, so a framework switch is unnecessary for this phase.
+- The current board data is seeded from `/Users/jiachenwang/Desktop/ai工作室/.worktrees/codex-realtime-collab-platform/studio-data.mjs`.
+- Durable client edits currently flow through `persistBoard()` in `/Users/jiachenwang/Desktop/ai工作室/.worktrees/codex-realtime-collab-platform/scripts/shared/studio-data-client.js`, which writes to `window.localStorage`.
+- The board model in `/Users/jiachenwang/Desktop/ai工作室/.worktrees/codex-realtime-collab-platform/scripts/shared/workspace-board.js` already normalizes `camera`, `nodes`, `edges`, history, and import/export behavior.
+- The workspace page in `/Users/jiachenwang/Desktop/ai工作室/.worktrees/codex-realtime-collab-platform/scripts/workspace-page.js` is a good candidate for a persistence adapter because rendering and interaction are already separated from raw storage concerns.
+- The existing Node server in `/Users/jiachenwang/Desktop/ai工作室/.worktrees/codex-realtime-collab-platform/server.mjs` currently serves static assets and AI endpoints but has no board persistence API.
 
 ## Technical Decisions
 | Decision | Rationale |
 |----------|-----------|
-| Rename the main app shell to `workspace.html` | Replaces placeholder naming with a route that can survive deployment |
-| Split the experience into `workspace.html`, `projects.html`, and `assets.html` | Aligns code ownership with the current navigation model |
-| Add shared modules for data and formatting helpers | Keeps page-specific scripts smaller and easier to maintain |
-| Add shared CSS plus page-specific CSS | Prevents duplicated base styling while keeping page layout concerns isolated |
-| Add a minimal Web App shell during the refactor | Avoids another structural pass right before deployment |
-| Keep a redirect shim for `222.html` if needed | Helps avoid breaking older local links during the rename |
+| Add collaboration config parsing to the server and client | Establishes explicit feature flags and environment-driven provider selection |
+| Introduce a server board repository abstraction | Keeps the first local server-backed implementation swappable with future Supabase/Postgres adapters |
+| Treat board content as durable document state and cursor/selection as ephemeral presence state | Matches how realtime collaboration systems usually separate persistence from awareness |
+| Store board snapshots on the server in the first slice | Gives us immediate shared persistence and migration structure even before websocket sync lands |
+| Keep `localStorage` only as optional client cache | Avoids data ownership split while still supporting quick recovery and offline-friendly behavior |
 
 ## Issues Encountered
 | Issue | Resolution |
 |-------|------------|
-| The app is outgrowing the original single-page `222.html` structure | Move to named pages with shared modules instead of continuing to expand the monolith |
-| Playwright CLI socket reuse made one browser test flaky | Switched the project-route verification to a Chrome headless DOM dump instead of the session-based CLI |
+| No existing worktree location was configured for the repository | Defaulted to a hidden project-local `.worktrees/` directory and isolated work on a `codex/` branch |
+| `.worktrees/` was not ignored in the repository | Added `.worktrees/` to `.gitignore` in the main workspace before creating the isolated worktree |
+| One full-suite baseline run failed during server startup in the new worktree | Confirmed the directly affected encoded-route check passes; will re-run the full suite after the collaboration foundation changes are in place |
 
 ## Resources
-- `/Users/jiachenwang/Desktop/ai工作室/222.html`
-- `/Users/jiachenwang/Desktop/ai工作室/开屏动画.html`
-- `/Users/jiachenwang/Desktop/ai工作室/app.js`
-- `/Users/jiachenwang/Desktop/ai工作室/server.mjs`
-- `/Users/jiachenwang/Desktop/ai工作室/studio-data.mjs`
-- `/Users/jiachenwang/Desktop/ai工作室/tests`
+- `/Users/jiachenwang/Desktop/ai工作室/.worktrees/codex-realtime-collab-platform/server.mjs`
+- `/Users/jiachenwang/Desktop/ai工作室/.worktrees/codex-realtime-collab-platform/studio-data.mjs`
+- `/Users/jiachenwang/Desktop/ai工作室/.worktrees/codex-realtime-collab-platform/scripts/shared/studio-data-client.js`
+- `/Users/jiachenwang/Desktop/ai工作室/.worktrees/codex-realtime-collab-platform/scripts/shared/workspace-board.js`
+- `/Users/jiachenwang/Desktop/ai工作室/.worktrees/codex-realtime-collab-platform/scripts/workspace-page.js`
+- `/Users/jiachenwang/Desktop/ai工作室/.worktrees/codex-realtime-collab-platform/docs/plans`
 
-## Visual/Browser Findings
-- The current app already behaves like three separate areas: workspace canvas, projects ledger, and assets with assistant.
-- That natural separation makes the page split low-risk compared with inventing a brand-new routing model.
-- After the refactor, the dedicated `workspace.html?project=PRJ-002` route renders `Dark Matter E-commerce`, Milan metadata, and connection paths as expected.
+## Visual and Interaction Findings
+- The current workspace already has the right interaction density for collaborative use: selection, dragging, grouping, edges, and an assistant panel.
+- Because the board renderer is already board-key aware, it can map naturally onto future workspace and board identifiers.
+- The current UI can absorb collaborative presence markers later without redesigning the whole shell.
 
 ---
-*Update this file after every 2 view/browser/search operations*
-*This prevents visual information from being lost*
+*Update this file after every meaningful discovery so context survives session boundaries.*

@@ -4,6 +4,7 @@ import {
   createBoardRegistry,
   escapeHtml,
   getProject,
+  hydrateBoardFromCloud,
   icon,
   nl2br,
   persistBoard,
@@ -139,6 +140,17 @@ function getActiveBoard() {
 
 function persistActiveBoard() {
   persistBoard(getActiveBoard());
+}
+
+async function syncBoardFromCloud(board = getActiveBoard()) {
+  if (!board) return;
+
+  const boardKey = board.key;
+  const payload = await hydrateBoardFromCloud(board);
+
+  if (payload?.board && getActiveBoard()?.key === boardKey) {
+    renderCanvas();
+  }
 }
 
 function ensureProjectBoard(projectId) {
@@ -687,6 +699,7 @@ function openOverviewCanvas() {
   state.ui.selectedEdgeId = null;
   syncRoute();
   renderCanvas();
+  syncBoardFromCloud(getActiveBoard());
 }
 
 function openProjectCanvas(projectId) {
@@ -701,6 +714,7 @@ function openProjectCanvas(projectId) {
   state.ui.selectedEdgeId = null;
   syncRoute();
   renderCanvas();
+  syncBoardFromCloud(board);
 }
 
 function bringNodesToFront(nodeIds) {
@@ -1883,3 +1897,4 @@ applyInitialRoute();
 syncRoute();
 renderAssistantThread();
 renderCanvas();
+syncBoardFromCloud(getActiveBoard());

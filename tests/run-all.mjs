@@ -22,6 +22,8 @@ const checks = [
   ["node", ["tests/verify-canvas-context-collapse.mjs"]],
   ["node", ["tests/verify-chat-api.mjs"]],
   ["node", ["tests/verify-workspace-ai-api.mjs"]],
+  ["node", ["tests/verify-collaboration-config-api.mjs"]],
+  ["node", ["tests/verify-board-snapshots-api.mjs"]],
 ];
 
 function runCheck(command, args) {

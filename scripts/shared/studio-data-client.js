@@ -1,5 +1,6 @@
 import { studioData } from "../../studio-data.mjs";
 import {
+  applyBoardSnapshot,
   createBoardSnapshot,
   createBoardState,
 } from "./workspace-board.js";
@@ -15,6 +16,25 @@ export const assetsDatabase = studioData.assets;
 export const projectIndex = new Map(projectDatabase.map((project) => [project.id, project]));
 export const filters = ["All", ...new Set(assetsDatabase.map((asset) => asset.category))];
 export const STORAGE_PREFIX = "zm-studio-canvas";
+const REMOTE_SAVE_DELAY_MS = 220;
+const DEFAULT_COLLABORATION_CONFIG = {
+  mode: "local",
+  provider: "local-storage",
+  features: {
+    persistence: false,
+    realtime: false,
+    presence: false,
+    localCache: true,
+  },
+  endpoints: {
+    config: "/api/collaboration/config",
+    boards: "/api/boards/:boardId",
+  },
+};
+
+let collaborationConfigPromise = null;
+const hydrationPromises = new Map();
+const pendingBoardSaves = new Map();
 
 export function defaultViewportCamera() {
   return {
@@ -165,6 +185,158 @@ function boardStorageKey(boardKey) {
   return `${STORAGE_PREFIX}:${boardKey}`;
 }
 
+function createRemoteBoardPayload(board) {
+  const snapshot = createBoardSnapshot(board);
+
+  return {
+    key: board.key,
+    projectId: board.projectId || null,
+    title: board.title || "",
+    description: board.description || "",
+    camera: snapshot.camera,
+    nodes: snapshot.nodes,
+    edges: snapshot.edges,
+  };
+}
+
+function applyRemoteBoard(board, remoteBoard) {
+  if (!board || !remoteBoard) return;
+
+  board.title = typeof remoteBoard.title === "string" ? remoteBoard.title : board.title;
+  board.description = typeof remoteBoard.description === "string" ? remoteBoard.description : board.description;
+  board.projectId = remoteBoard.projectId || board.projectId || null;
+  applyBoardSnapshot(board, {
+    camera: remoteBoard.camera,
+    nodes: remoteBoard.nodes,
+    edges: remoteBoard.edges,
+  });
+  board.collaboration = {
+    ...(board.collaboration || {}),
+    hydrated: true,
+    lastSyncedAt: Date.now(),
+  };
+}
+
+function boardEndpoint(config, boardKey) {
+  const pattern = config?.endpoints?.boards || DEFAULT_COLLABORATION_CONFIG.endpoints.boards;
+  return pattern.replace(":boardId", encodeURIComponent(boardKey));
+}
+
+async function readJsonResponse(response, fallbackMessage) {
+  let payload = null;
+
+  try {
+    payload = await response.json();
+  } catch {}
+
+  if (!response.ok) {
+    const errorMessage = payload?.error || fallbackMessage || `Request failed with ${response.status}`;
+    throw new Error(errorMessage);
+  }
+
+  return payload;
+}
+
+export async function getCollaborationConfig() {
+  if (!collaborationConfigPromise) {
+    collaborationConfigPromise = (async () => {
+      try {
+        const response = await fetch(DEFAULT_COLLABORATION_CONFIG.endpoints.config, {
+          headers: {
+            accept: "application/json",
+          },
+        });
+        const payload = await readJsonResponse(response, "Unable to load collaboration config.");
+
+        return {
+          ...DEFAULT_COLLABORATION_CONFIG,
+          ...payload,
+          features: {
+            ...DEFAULT_COLLABORATION_CONFIG.features,
+            ...(payload?.features || {}),
+          },
+          endpoints: {
+            ...DEFAULT_COLLABORATION_CONFIG.endpoints,
+            ...(payload?.endpoints || {}),
+          },
+        };
+      } catch {
+        return cloneValue(DEFAULT_COLLABORATION_CONFIG);
+      }
+    })();
+  }
+
+  return collaborationConfigPromise;
+}
+
+export async function hydrateBoardFromCloud(board) {
+  if (!board?.key || hydrationPromises.has(board.key)) {
+    return hydrationPromises.get(board?.key) || null;
+  }
+
+  const task = (async () => {
+    const config = await getCollaborationConfig();
+
+    if (!config.features?.persistence || config.mode !== "server") {
+      return null;
+    }
+
+    const response = await fetch(boardEndpoint(config, board.key), {
+      headers: {
+        accept: "application/json",
+      },
+    });
+    const payload = await readJsonResponse(response, `Unable to load board ${board.key}.`);
+
+    if (payload?.board) {
+      applyRemoteBoard(board, payload.board);
+      writeStorage(boardStorageKey(board.key), JSON.stringify(createBoardSnapshot(board)));
+    }
+
+    return payload;
+  })()
+    .catch(() => null)
+    .finally(() => {
+      hydrationPromises.delete(board.key);
+    });
+
+  hydrationPromises.set(board.key, task);
+  return task;
+}
+
+async function flushBoardSave(boardKey) {
+  const pending = pendingBoardSaves.get(boardKey);
+  if (!pending) return;
+
+  pendingBoardSaves.delete(boardKey);
+
+  const config = await getCollaborationConfig();
+  if (!config.features?.persistence || config.mode !== "server") {
+    return;
+  }
+
+  try {
+    const response = await fetch(boardEndpoint(config, boardKey), {
+      method: "PUT",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify({
+        board: pending.payload,
+      }),
+    });
+    const payload = await readJsonResponse(response, `Unable to save board ${boardKey}.`);
+
+    if (payload?.board && pending.board?.key === boardKey) {
+      applyRemoteBoard(pending.board, payload.board);
+      writeStorage(boardStorageKey(boardKey), JSON.stringify(createBoardSnapshot(pending.board)));
+    }
+  } catch (error) {
+    console.warn(error instanceof Error ? error.message : `Unable to save board ${boardKey}.`);
+  }
+}
+
 function createBoard(boardKey, source, project = null) {
   const persistedRaw = readStorage(boardStorageKey(boardKey));
   let persisted = null;
@@ -204,6 +376,19 @@ export function persistBoard(board) {
   if (!board) return;
 
   writeStorage(boardStorageKey(board.key), JSON.stringify(createBoardSnapshot(board)));
+
+  const pending = pendingBoardSaves.get(board.key);
+  if (pending?.timer) {
+    window.clearTimeout(pending.timer);
+  }
+
+  pendingBoardSaves.set(board.key, {
+    board,
+    payload: createRemoteBoardPayload(board),
+    timer: window.setTimeout(() => {
+      flushBoardSave(board.key);
+    }, REMOTE_SAVE_DELAY_MS),
+  });
 }
 
 export { studioData };

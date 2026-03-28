@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import OpenAI from "openai";
+import { createBoardStore } from "./board-store.mjs";
+import { getCollaborationConfig } from "./collaboration-config.mjs";
 import { studioData } from "./studio-data.mjs";
 
 const ROOT_DIR = process.cwd();
@@ -42,6 +44,11 @@ loadDotEnv();
 const PORT = Number(process.env.PORT || 4173);
 const MINIMAX_BASE_URL = process.env.MINIMAX_BASE_URL || "https://api.minimaxi.com/v1";
 const MODEL = process.env.MINIMAX_MODEL || "MiniMax-M2.7";
+const collaborationConfig = getCollaborationConfig(process.env, ROOT_DIR);
+const boardStore = createBoardStore({
+  provider: collaborationConfig.provider,
+  storageDir: collaborationConfig.storageDir,
+});
 const client = process.env.MINIMAX_API_KEY
   ? new OpenAI({
       apiKey: process.env.MINIMAX_API_KEY,
@@ -467,6 +474,46 @@ async function handleWorkspaceAssistant(request, response) {
   }
 }
 
+async function handleBoardGet(response, boardId) {
+  const payload = await boardStore.getBoard(boardId);
+
+  if (!payload) {
+    sendJson(response, 404, { error: `Board ${boardId} was not found.` });
+    return;
+  }
+
+  sendJson(response, 200, payload);
+}
+
+async function handleBoardPut(request, response, boardId) {
+  let body;
+  try {
+    body = await parseJsonBody(request);
+  } catch {
+    sendJson(response, 400, { error: "Request body must be valid JSON." });
+    return;
+  }
+
+  if (!body || typeof body.board !== "object" || Array.isArray(body.board)) {
+    sendJson(response, 400, { error: "Request body must include a board object." });
+    return;
+  }
+
+  try {
+    const payload = await boardStore.saveBoard(boardId, body.board);
+    sendJson(response, 200, payload);
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "BOARD_NOT_FOUND") {
+      sendJson(response, 404, { error: `Board ${boardId} was not found.` });
+      return;
+    }
+
+    sendJson(response, 500, {
+      error: error instanceof Error ? error.message : "Unable to save board.",
+    });
+  }
+}
+
 async function handleStatic(requestPath, response) {
   try {
     const filePath = safeFilePath(requestPath);
@@ -506,6 +553,35 @@ const server = http.createServer(async (request, response) => {
       assets: studioData.assets,
     });
     return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/collaboration/config") {
+    sendJson(response, 200, {
+      mode: collaborationConfig.mode,
+      provider: collaborationConfig.provider,
+      features: collaborationConfig.features,
+      endpoints: collaborationConfig.endpoints,
+    });
+    return;
+  }
+
+  if (url.pathname.startsWith("/api/boards/")) {
+    const boardId = decodeURIComponent(url.pathname.slice("/api/boards/".length)).trim();
+
+    if (!boardId) {
+      sendJson(response, 400, { error: "Board ID is required." });
+      return;
+    }
+
+    if (request.method === "GET") {
+      await handleBoardGet(response, boardId);
+      return;
+    }
+
+    if (request.method === "PUT") {
+      await handleBoardPut(request, response, boardId);
+      return;
+    }
   }
 
   if (request.method === "POST" && url.pathname === "/api/chat") {

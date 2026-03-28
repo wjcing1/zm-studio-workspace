@@ -21,6 +21,7 @@
 | Treat board content as durable document state and cursor/selection as ephemeral presence state | Matches how realtime collaboration systems usually separate persistence from awareness |
 | Store board snapshots on the server in the first slice | Gives us immediate shared persistence and migration structure even before websocket sync lands |
 | Keep `localStorage` only as optional client cache | Avoids data ownership split while still supporting quick recovery and offline-friendly behavior |
+| Debounce server saves from the client while writing the cache immediately | Preserves the current editing feel and prevents a network write per edit event |
 
 ## Issues Encountered
 | Issue | Resolution |
@@ -28,6 +29,7 @@
 | No existing worktree location was configured for the repository | Defaulted to a hidden project-local `.worktrees/` directory and isolated work on a `codex/` branch |
 | `.worktrees/` was not ignored in the repository | Added `.worktrees/` to `.gitignore` in the main workspace before creating the isolated worktree |
 | One full-suite baseline run failed during server startup in the new worktree | Confirmed the directly affected encoded-route check passes; will re-run the full suite after the collaboration foundation changes are in place |
+| A stale server on port `4323` caused one API test run to hit old routes | Killed the stale process and reran the test against the current code |
 
 ## Resources
 - `/Users/jiachenwang/Desktop/ai工作室/.worktrees/codex-realtime-collab-platform/server.mjs`
@@ -41,6 +43,7 @@
 - The current workspace already has the right interaction density for collaborative use: selection, dragging, grouping, edges, and an assistant panel.
 - Because the board renderer is already board-key aware, it can map naturally onto future workspace and board identifiers.
 - The current UI can absorb collaborative presence markers later without redesigning the whole shell.
+- The new client adapter can hydrate from the server after the initial render without changing the existing canvas shell structure.
 
 ---
 *Update this file after every meaningful discovery so context survives session boundaries.*

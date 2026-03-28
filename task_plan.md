@@ -4,7 +4,7 @@
 Turn the current single-user workspace into the first cloud-ready slice of a multi-user collaboration platform by introducing server-backed board persistence, workspace-aware data contracts, and a realtime collaboration integration path.
 
 ## Current Phase
-Phase 3
+Phase 5
 
 ## Phases
 ### Phase 1: Discovery and Design
@@ -20,22 +20,22 @@ Phase 3
 - **Status:** complete
 
 ### Phase 3: Backend Foundation
-- [ ] Add collaboration configuration and environment wiring
-- [ ] Add a server-side board repository abstraction with workspace-aware contracts
-- [ ] Add API endpoints for board load and save flows
-- **Status:** in_progress
+- [x] Add collaboration configuration and environment wiring
+- [x] Add a server-side board repository abstraction with workspace-aware contracts
+- [x] Add API endpoints for board load and save flows
+- **Status:** complete
 
 ### Phase 4: Client Integration
-- [ ] Replace direct `localStorage` ownership with a board persistence adapter
-- [ ] Add cloud-first loading with local fallback/cache behavior
-- [ ] Preserve the existing board renderer and interaction model
-- **Status:** pending
+- [x] Replace direct `localStorage` ownership with a board persistence adapter
+- [x] Add cloud-first loading with local fallback/cache behavior
+- [x] Preserve the existing board renderer and interaction model
+- **Status:** complete
 
 ### Phase 5: Verification and Delivery
-- [ ] Add or update regression coverage for the new API and persistence behavior
-- [ ] Run targeted and broad verification
+- [x] Add or update regression coverage for the new API and persistence behavior
+- [x] Run targeted and broad verification
 - [ ] Summarize the new cloud-ready collaboration path for the user
-- **Status:** pending
+- **Status:** in_progress
 
 ## Key Questions
 1. How do we move from browser-only persistence to shared cloud persistence without rewriting the whole canvas renderer?
@@ -55,6 +55,7 @@ Phase 3
 | Error | Attempt | Resolution |
 |-------|---------|------------|
 | `npm test` failed once in the new worktree while spawning `server.mjs` with an `openai` package resolution error | 1 | Re-ran the previously failing encoded-route check directly and it passed; treating the full-suite failure as transient until it reproduces |
+| Port `4323` served a stale `node server.mjs` process during the new collaboration config test | 1 | Killed the stale process and reran the test against the new server successfully |
 
 ## Notes
 - Work is being executed in `/Users/jiachenwang/Desktop/ai工作室/.worktrees/codex-realtime-collab-platform`

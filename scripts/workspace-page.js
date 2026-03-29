@@ -39,9 +39,14 @@ import {
   normalizePresenceState,
   readBoardPayloadFromDoc,
 } from "./shared/workspace-collaboration.js";
-import { setupWebApp } from "./shared/register-web-app.js";
+import { setupWebApp } from "./shared/register-web-app.js?v=2026-03-29-pages-1";
 
 setupWebApp();
+
+const WORKSPACE_STATIC_AI_HINT =
+  "Workspace AI requires a server backend. GitHub Pages serves the static canvas only.";
+const WORKSPACE_STATIC_AI_RECOVERY =
+  "Workspace AI requires a server backend. GitHub Pages serves the static canvas only. Deploy `/api/workspace-assistant` on a Node-capable host to enable it.";
 
 const WORKSPACE_STARTERS = [
   "Summarize the selected or nearby cards and add three follow-up notes.",
@@ -110,6 +115,7 @@ const state = {
     input: "",
     sending: false,
     error: "",
+    backendReady: false,
   },
 };
 
@@ -1087,8 +1093,10 @@ function renderAssistantThread() {
     assistantStatus.textContent = "Thinking with the active board…";
   } else if (state.assistant.error) {
     assistantStatus.textContent = state.assistant.error;
+  } else if (state.assistant.backendReady) {
+    assistantStatus.textContent = "Workspace AI backend connected.";
   } else {
-    assistantStatus.textContent = "Workspace AI ready.";
+    assistantStatus.textContent = WORKSPACE_STATIC_AI_HINT;
   }
 
   assistantMessages.scrollTop = assistantMessages.scrollHeight;
@@ -1670,6 +1678,7 @@ async function sendAssistantMessage(rawText) {
       throw new Error(payload.error || `Workspace AI request failed with status ${response.status}.`);
     }
 
+    state.assistant.backendReady = true;
     const board = getActiveBoard();
     const operations = Array.isArray(payload.operations) ? payload.operations : [];
     let applied = [];
@@ -1689,7 +1698,9 @@ async function sendAssistantMessage(rawText) {
       applied.length > 0 ? `\n\nApplied ${applied.length} canvas change${applied.length > 1 ? "s" : ""}.` : "";
     replacePendingAssistantMessage((payload.reply || "I couldn't produce a reply just now.") + suffix);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Workspace AI is currently unavailable.";
+    const rawMessage = error instanceof Error ? error.message : "Workspace AI is currently unavailable.";
+    const message =
+      /status 404|failed to fetch|load failed/i.test(rawMessage) ? WORKSPACE_STATIC_AI_RECOVERY : rawMessage;
     state.assistant.error = message;
     replacePendingAssistantMessage(`The workspace assistant could not respond right now.\n\n${message}`);
   } finally {

@@ -26,8 +26,11 @@ async function main() {
       message: "manifest.webmanifest should declare standalone display mode.",
     },
     {
-      ok: manifestSource.includes('"start_url": "/"'),
-      message: "manifest.webmanifest should start from the site root.",
+      ok:
+        manifestSource.includes('"start_url": "./index.html"') &&
+        manifestSource.includes('"scope": "./"') &&
+        manifestSource.includes('"src": "./icons/app-icon.svg"'),
+      message: "manifest.webmanifest should use relative URLs so the app works from a GitHub Pages subpath.",
     },
     {
       ok: serviceWorkerSource.includes("workspace.html") && serviceWorkerSource.includes("assets.html"),
@@ -83,8 +86,8 @@ async function main() {
       message: "shared.css should limit nav-link transitions to simple brightening instead of motion-heavy animation.",
     },
     {
-      ok: serviceWorkerSource.includes('/styles/shared.css?v=${ASSETS_VERSION}'),
-      message: "sw.js should precache the versioned shared stylesheet.",
+      ok: serviceWorkerSource.includes('./styles/shared.css?v=${APP_VERSION}') && serviceWorkerSource.includes("new URL(asset, APP_BASE_URL)"),
+      message: "sw.js should precache the versioned shared stylesheet from a relative GitHub Pages-safe base.",
     },
     {
       ok: serverSource.includes("application/manifest+json"),

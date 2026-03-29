@@ -11,7 +11,7 @@ export function setupWebApp() {
   if (!registrationStarted && "serviceWorker" in navigator) {
     registrationStarted = true;
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("/sw.js").catch(() => {});
+      navigator.serviceWorker.register("./sw.js").catch(() => {});
     });
   }
 

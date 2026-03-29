@@ -50,7 +50,7 @@ async function main() {
       message: "开屏动画.html should expose the enter button hook.",
     },
     {
-      ok: splashSource.includes('<script type="module" src="./splash.js"></script>'),
+      ok: /<script type="module" src="\.\/splash\.js(?:\?v=[^"]+)?"><\/script>/.test(splashSource),
       message: "开屏动画.html should load the dedicated splash.js module.",
     },
     {

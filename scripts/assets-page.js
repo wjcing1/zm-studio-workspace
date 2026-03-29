@@ -6,9 +6,13 @@ import {
   nl2br,
   studioData,
 } from "./shared/studio-data-client.js";
-import { setupWebApp } from "./shared/register-web-app.js";
+import { setupWebApp } from "./shared/register-web-app.js?v=2026-03-29-pages-1";
 
 setupWebApp();
+
+const ASSETS_STATIC_AI_HINT = "AI requires a server backend. GitHub Pages serves the static portfolio only.";
+const ASSETS_STATIC_AI_RECOVERY =
+  "AI requires a server backend. GitHub Pages serves the static portfolio only. Deploy `/api/chat` on a Node-capable host to enable it.";
 
 const state = {
   activeFilter: "All",
@@ -23,6 +27,7 @@ const state = {
     input: "",
     sending: false,
     error: "",
+    backendReady: false,
   },
 };
 
@@ -145,8 +150,10 @@ function renderAssistant() {
     assistantStatus.textContent = "Thinking…";
   } else if (state.chat.error) {
     assistantStatus.textContent = state.chat.error;
+  } else if (state.chat.backendReady) {
+    assistantStatus.textContent = "Live AI backend connected.";
   } else {
-    assistantStatus.textContent = "Live MiniMax AI via /api/chat";
+    assistantStatus.textContent = ASSETS_STATIC_AI_HINT;
   }
 
   assistantMessages.scrollTop = assistantMessages.scrollHeight;
@@ -188,10 +195,12 @@ async function sendChatMessage(rawText) {
       throw new Error(payload.error || `AI request failed with status ${response.status}.`);
     }
 
+    state.chat.backendReady = true;
     replacePendingAssistantMessage(payload.reply || "I couldn't produce a reply just now.");
   } catch (error) {
+    const rawMessage = error instanceof Error ? error.message : "AI service is currently unavailable.";
     const message =
-      error instanceof Error ? error.message : "AI service is currently unavailable.";
+      /status 404|failed to fetch|load failed/i.test(rawMessage) ? ASSETS_STATIC_AI_RECOVERY : rawMessage;
     state.chat.error = message;
     replacePendingAssistantMessage(`现在还没有拿到 AI 回复。\n\n${message}`);
   } finally {

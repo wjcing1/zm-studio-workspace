@@ -1,4 +1,4 @@
-import { setupWebApp } from "./scripts/shared/register-web-app.js";
+import { setupWebApp } from "./scripts/shared/register-web-app.js?v=2026-03-29-pages-1";
 
 const FONT_GRID = {
   S: [

@@ -1,30 +1,32 @@
-const CACHE_NAME = "zm-studio-shell-v4";
-const ASSETS_VERSION = "2026-03-27-nav-1";
-const WORKSPACE_VERSION = "2026-03-28-workspace-copilot-1";
+const CACHE_NAME = "zm-studio-shell-v5";
+const APP_VERSION = "2026-03-29-pages-1";
+const APP_BASE_URL = new URL("./", self.location.href);
+const NAVIGATION_FALLBACK = new URL("./workspace.html", APP_BASE_URL).toString();
+const APP_SCOPE_PATH = APP_BASE_URL.pathname.endsWith("/") ? APP_BASE_URL.pathname : `${APP_BASE_URL.pathname}/`;
 const APP_SHELL = [
-  "/",
-  "/index.html",
-  "/开屏动画.html",
-  "/workspace.html",
-  "/projects.html",
-  "/assets.html",
-  "/222.html",
-  `/styles/shared.css?v=${ASSETS_VERSION}`,
-  `/styles/assets.css?v=${ASSETS_VERSION}`,
-  `/styles/workspace.css?v=${WORKSPACE_VERSION}`,
-  "/styles/projects.css",
-  "/styles/splash.css",
-  "/scripts/shared/studio-data-client.js",
-  "/scripts/shared/workspace-board.js",
-  "/scripts/shared/register-web-app.js",
-  `/scripts/workspace-page.js?v=${WORKSPACE_VERSION}`,
-  "/scripts/projects-page.js",
-  `/scripts/assets-page.js?v=${ASSETS_VERSION}`,
-  "/splash.js",
-  "/studio-data.mjs",
-  "/manifest.webmanifest",
-  "/icons/app-icon.svg"
-];
+  "./",
+  "./index.html",
+  "./开屏动画.html",
+  "./workspace.html",
+  "./projects.html",
+  "./assets.html",
+  "./222.html",
+  `./styles/shared.css?v=${APP_VERSION}`,
+  `./styles/assets.css?v=${APP_VERSION}`,
+  `./styles/workspace.css?v=${APP_VERSION}`,
+  "./styles/projects.css",
+  "./styles/splash.css",
+  "./scripts/shared/studio-data-client.js",
+  "./scripts/shared/workspace-board.js",
+  `./scripts/shared/register-web-app.js?v=${APP_VERSION}`,
+  `./scripts/workspace-page.js?v=${APP_VERSION}`,
+  `./scripts/projects-page.js?v=${APP_VERSION}`,
+  `./scripts/assets-page.js?v=${APP_VERSION}`,
+  `./splash.js?v=${APP_VERSION}`,
+  "./studio-data.mjs",
+  "./manifest.webmanifest",
+  "./icons/app-icon.svg",
+].map((asset) => new URL(asset, APP_BASE_URL).toString());
 
 function isRefreshSensitiveShellAsset(request, url) {
   return (
@@ -91,13 +93,13 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (url.pathname.startsWith("/api/")) {
+  if (url.pathname.startsWith("/api/") || url.pathname.startsWith(`${APP_SCOPE_PATH}api/`)) {
     event.respondWith(fetch(request));
     return;
   }
 
   if (isRefreshSensitiveShellAsset(request, url)) {
-    event.respondWith(networkFirst(request, request.mode === "navigate" ? "/workspace.html" : null));
+    event.respondWith(networkFirst(request, request.mode === "navigate" ? NAVIGATION_FALLBACK : null));
     return;
   }
 

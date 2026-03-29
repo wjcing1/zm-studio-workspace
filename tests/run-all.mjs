@@ -3,6 +3,8 @@ import { spawn } from "node:child_process";
 import process from "node:process";
 
 const checks = [
+  ["node", ["tests/verify-github-pages-compat.mjs"]],
+  ["node", ["tests/verify-github-pages-build.mjs"]],
   ["node", ["tests/verify-splash-page.mjs"]],
   ["node", ["tests/verify-encoded-splash-route.mjs"]],
   ["node", ["tests/verify-222.mjs"]],

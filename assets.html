@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="ZM Studio assets library and AI assistant." />
+    <meta name="theme-color" content="#050505" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="ZM Studio" />
+    <title>ZM Studio Assets</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icons/app-icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icons/app-icon.svg" />
+    <link rel="stylesheet" href="./styles/shared.css?v=2026-03-29-pages-1" />
+    <link rel="stylesheet" href="./styles/assets.css?v=2026-03-29-pages-1" />
+  </head>
+  <body data-page="zm-assets">
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="./workspace.html" aria-label="Open workspace">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3 19 7v10l-7 4-7-4V7Z"></path>
+          </svg>
+          <span class="brand-name">zm studio</span>
+        </a>
+
+        <nav class="nav" aria-label="Studio pages">
+          <a class="nav-link" href="./workspace.html">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3" y="4" width="7" height="7" rx="1.5"></rect>
+              <rect x="14" y="4" width="7" height="7" rx="1.5"></rect>
+              <rect x="3" y="13" width="7" height="7" rx="1.5"></rect>
+              <rect x="14" y="13" width="7" height="7" rx="1.5"></rect>
+            </svg>
+            Workspace
+          </a>
+          <a class="nav-link" href="./projects.html">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <ellipse cx="12" cy="5.5" rx="7" ry="3"></ellipse>
+              <path d="M5 5.5v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"></path>
+              <path d="M5 11.5v7c0 1.7 3.1 3 7 3s7-1.3 7-3v-7"></path>
+            </svg>
+            Projects
+          </a>
+          <a class="nav-link is-active" href="./assets.html">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 7.5 12 3l9 4.5-9 4.5Z"></path>
+              <path d="M3 12l9 4.5 9-4.5"></path>
+              <path d="M3 16.5 12 21l9-4.5"></path>
+            </svg>
+            Assets
+          </a>
+        </nav>
+      </header>
+
+      <main class="page-main" aria-label="Assets page">
+        <div class="section-wrap">
+          <div class="assets-layout">
+            <div class="assets-main">
+              <div class="assets-toolbar">
+                <div>
+                  <div class="section-kicker">
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M3 7.5 12 3l9 4.5-9 4.5Z"></path>
+                      <path d="M3 12l9 4.5 9-4.5"></path>
+                      <path d="M3 16.5 12 21l9-4.5"></path>
+                    </svg>
+                    <h1>Digital Assets.</h1>
+                  </div>
+                  <p class="section-copy">
+                    A curated library of reusable models, textures, and interface components.
+                  </p>
+                </div>
+
+                <div class="asset-controls">
+                  <label class="search-shell">
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <circle cx="11" cy="11" r="7"></circle>
+                      <path d="m20 20-3.5-3.5"></path>
+                    </svg>
+                    <input class="search-input" id="assetSearch" type="search" placeholder="Search assets..." />
+                  </label>
+                  <div class="asset-filters" id="assetFilters"></div>
+                </div>
+              </div>
+
+              <div class="asset-grid" id="assetGrid"></div>
+            </div>
+
+            <aside class="assistant-panel" id="assistantPanel" aria-label="AI assistant panel">
+              <div class="assistant-shell">
+                <div class="assistant-kicker">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 3 14.5 9.5 21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"></path>
+                  </svg>
+                  AI Assistant
+                </div>
+                <h2 class="assistant-title">Ask About The Work.</h2>
+                <p class="assistant-copy">
+                  Ask about projects, where they happened, what was delivered, or which case study best represents the studio.
+                </p>
+                <div class="assistant-starters" id="assistantStarters">
+                  <button class="assistant-starter" data-starter-prompt="你都做过什么项目？" type="button">你都做过什么项目？</button>
+                  <button class="assistant-starter" data-starter-prompt="这些项目都在哪儿？" type="button">这些项目都在哪儿？</button>
+                  <button class="assistant-starter" data-starter-prompt="哪个项目最能代表你的工作方式？" type="button">哪个项目最能代表你的工作方式？</button>
+                </div>
+                <div class="assistant-thread" id="assistantMessages"></div>
+                <form class="assistant-composer" id="assistantComposer">
+                  <textarea class="assistant-input" id="assistantInput" placeholder="Ask the AI about projects, locations, deliverables..." spellcheck="false"></textarea>
+                  <button class="assistant-send" id="assistantSend" type="submit">
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="m3 11.5 17-8.5-3.5 17-4.5-6-6 2.5Z"></path>
+                    </svg>
+                    Send
+                  </button>
+                </form>
+                <div class="assistant-status" id="assistantStatus">AI requires a server backend. GitHub Pages serves the static portfolio only.</div>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script type="module" src="./scripts/assets-page.js?v=2026-03-29-pages-1"></script>
+  </body>
+</html>

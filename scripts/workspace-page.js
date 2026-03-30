@@ -1621,6 +1621,7 @@ function buildWorkspaceAssistantRequest() {
       })),
     board: {
       key: board.key,
+      projectId: board.projectId || "",
       title: board.title,
       description: board.description,
       nodeCount: board.nodes.length,

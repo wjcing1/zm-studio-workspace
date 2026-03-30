@@ -6,8 +6,15 @@ import process from "node:process";
 import OpenAI from "openai";
 import { createBoardStore } from "./board-store.mjs";
 import { getCollaborationConfig } from "./collaboration-config.mjs";
+import { createMemoryStore } from "./memory-store.mjs";
 import { createRealtimeCollaborationServer } from "./realtime-collaboration-server.mjs";
 import { studioData } from "./studio-data.mjs";
+import {
+  buildMemoryLookupQuery,
+  deriveMemoryScopes,
+  extractDurableMemories,
+  formatMemoriesForPrompt,
+} from "./workspace-memory.mjs";
 
 const ROOT_DIR = process.cwd();
 
@@ -49,6 +56,9 @@ const collaborationConfig = getCollaborationConfig(process.env, ROOT_DIR);
 const boardStore = createBoardStore({
   provider: collaborationConfig.provider,
   storageDir: collaborationConfig.storageDir,
+});
+const memoryStore = createMemoryStore({
+  storageDir: process.env.MEMORY_STORE_DIR || path.join(ROOT_DIR, ".data", "memory"),
 });
 const collaborationServer = createRealtimeCollaborationServer({
   boardStore,
@@ -218,6 +228,7 @@ function normalizeWorkspaceBody(body) {
   return {
     board: {
       key: typeof board.key === "string" ? board.key.slice(0, 80) : "workspace",
+      projectId: typeof board.projectId === "string" ? board.projectId.slice(0, 80) : "",
       title: typeof board.title === "string" ? board.title.slice(0, 120) : "Workspace",
       description: typeof board.description === "string" ? board.description.slice(0, 800) : "",
       nodeCount: typeof board.nodeCount === "number" ? board.nodeCount : Array.isArray(board.nodes) ? board.nodes.length : 0,
@@ -253,11 +264,12 @@ function normalizeWorkspaceBody(body) {
   };
 }
 
-function buildWorkspaceAssistantPrompt(workspaceContext) {
+function buildWorkspaceAssistantPrompt(workspaceContext, memorySection = "Long-term memory:\n- none") {
   return [
     "You are the workspace canvas copilot for ZM Studio.",
     "You help the user think on a spatial canvas and you may directly modify the active board.",
     "Prioritize context in this order: hovered node, selected nodes, nearby nodes, connected nodes, visible nodes, then board summary.",
+    "Use long-term memory only as durable guidance. Prefer current user instructions if they conflict.",
     "Return JSON only with this shape:",
     '{"reply":"short helpful response","operations":[{"type":"addNode","node":{}},{"type":"updateNode","id":"node-id","patch":{}},{"type":"removeNode","id":"node-id"},{"type":"addEdge","edge":{}},{"type":"removeEdge","id":"edge-id"}]}',
     "Allowed node types: text, link, group, image, project.",
@@ -267,6 +279,8 @@ function buildWorkspaceAssistantPrompt(workspaceContext) {
     "Prefer small, precise edits over rewriting the whole board.",
     "If the request is only analytical, return operations as an empty array.",
     "Match the user's language when possible.",
+    "",
+    memorySection,
     "",
     "Workspace context:",
     JSON.stringify(workspaceContext, null, 2),
@@ -434,6 +448,17 @@ async function handleWorkspaceAssistant(request, response) {
   }
 
   const workspaceContext = normalizeWorkspaceBody(body);
+  const memoryScopes = deriveMemoryScopes(workspaceContext);
+  const memoryQuery = buildMemoryLookupQuery({
+    workspaceContext,
+    messages,
+  });
+  const relevantMemories = await memoryStore.findRelevantMemories({
+    scopes: memoryScopes,
+    query: memoryQuery,
+    limit: 5,
+  });
+  const memorySection = formatMemoriesForPrompt(relevantMemories);
 
   try {
     const completion = await client.chat.completions.create({
@@ -441,7 +466,7 @@ async function handleWorkspaceAssistant(request, response) {
       messages: [
         {
           role: "system",
-          content: buildWorkspaceAssistantPrompt(workspaceContext),
+          content: buildWorkspaceAssistantPrompt(workspaceContext, memorySection),
         },
         ...messages,
       ],
@@ -463,6 +488,23 @@ async function handleWorkspaceAssistant(request, response) {
       reply = typeof payload.reply === "string" && payload.reply.trim() ? payload.reply.trim() : rawReply;
       operations = normalizeWorkspaceOperations(payload.operations);
     } catch {}
+
+    const extractedMemories = extractDurableMemories({
+      workspaceContext,
+      messages,
+    });
+
+    try {
+      if (relevantMemories.length > 0) {
+        await memoryStore.touchMemories(relevantMemories.map((item) => item.id));
+      }
+
+      if (extractedMemories.length > 0) {
+        await memoryStore.upsertMemories(extractedMemories);
+      }
+    } catch (error) {
+      console.warn(error instanceof Error ? error.message : "Unable to persist workspace memory.");
+    }
 
     sendJson(response, 200, {
       reply,

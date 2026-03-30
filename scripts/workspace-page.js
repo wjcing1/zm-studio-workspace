@@ -39,7 +39,7 @@ import {
   normalizePresenceState,
   readBoardPayloadFromDoc,
 } from "./shared/workspace-collaboration.js";
-import { setupWebApp } from "./shared/register-web-app.js?v=2026-03-29-pages-1";
+import { setupWebApp } from "./shared/register-web-app.js?v=2026-03-30-auth-1";
 
 setupWebApp();
 
@@ -1621,6 +1621,7 @@ function buildWorkspaceAssistantRequest() {
       })),
     board: {
       key: board.key,
+      projectId: board.projectId || "",
       title: board.title,
       description: board.description,
       nodeCount: board.nodes.length,

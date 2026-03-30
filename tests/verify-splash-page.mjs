@@ -22,36 +22,29 @@ async function main() {
     }
   }
 
+  const trimmedIndex = indexSource.trimStart();
   const trimmedSplash = splashSource.trimStart();
 
   const checks = [
     {
-      ok: indexSource.includes('url=./开屏动画.html'),
-      message: "index.html should redirect visitors into 开屏动画.html first.",
+      ok: trimmedIndex.startsWith("<!DOCTYPE html>"),
+      message: "index.html must now be the real standalone splash HTML document.",
     },
     {
-      ok: trimmedSplash.startsWith("<!DOCTYPE html>"),
-      message: "开屏动画.html must be a real standalone HTML document.",
+      ok: indexSource.includes('data-page="zm-splash"'),
+      message: "index.html should expose the splash page marker directly.",
     },
     {
-      ok: !trimmedSplash.startsWith("import React"),
-      message: "开屏动画.html must not begin with raw React source.",
+      ok: indexSource.includes('id="splashCanvas"'),
+      message: "index.html should provide the canvas mount for the intro animation.",
     },
     {
-      ok: splashSource.includes('data-page="zm-splash"'),
-      message: "开屏动画.html should expose the splash page marker.",
+      ok: indexSource.includes('id="enterStudioButton"'),
+      message: "index.html should expose the enter button hook.",
     },
     {
-      ok: splashSource.includes('id="splashCanvas"'),
-      message: "开屏动画.html should provide the canvas mount for the intro animation.",
-    },
-    {
-      ok: splashSource.includes('id="enterStudioButton"'),
-      message: "开屏动画.html should expose the enter button hook.",
-    },
-    {
-      ok: /<script type="module" src="\.\/splash\.js(?:\?v=[^"]+)?"><\/script>/.test(splashSource),
-      message: "开屏动画.html should load the dedicated splash.js module.",
+      ok: /<script type="module" src="\.\/splash\.js(?:\?v=[^"]+)?"><\/script>/.test(indexSource),
+      message: "index.html should load the dedicated splash.js module.",
     },
     {
       ok: scriptSource.length > 0,
@@ -62,16 +55,32 @@ async function main() {
       message: "splash.js should drive the animation loop with requestAnimationFrame.",
     },
     {
-      ok: splashSource.includes('data-target-page="./login.html"'),
-      message: "开屏动画.html should target login.html as the next page after the intro.",
+      ok: indexSource.includes('data-target-page="./login.html"'),
+      message: "index.html should target login.html as the next page after the intro.",
     },
     {
-      ok: splashSource.includes('href="./login.html"'),
-      message: "开屏动画.html should link into login.html.",
+      ok: indexSource.includes('href="./login.html"'),
+      message: "index.html should link into login.html.",
     },
     {
       ok: scriptSource.includes("./login.html"),
       message: "splash.js should navigate into login.html after the intro.",
+    },
+    {
+      ok: trimmedSplash.startsWith("<!DOCTYPE html>"),
+      message: "开屏动画.html should remain a standalone HTML document for legacy links.",
+    },
+    {
+      ok: splashSource.includes('url=./index.html'),
+      message: "开屏动画.html should forward legacy links into index.html.",
+    },
+    {
+      ok: splashSource.includes('href="./index.html"'),
+      message: "开屏动画.html should provide a clickable fallback link to index.html.",
+    },
+    {
+      ok: !splashSource.includes('data-page="zm-splash"'),
+      message: "开屏动画.html should no longer be the primary splash document.",
     },
   ];
 

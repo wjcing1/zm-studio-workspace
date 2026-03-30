@@ -39,6 +39,22 @@ async function main() {
       message: "login.html should expose the password input hook.",
     },
     {
+      ok: loginSource.includes('class="login-card"'),
+      message: "login.html should render a minimal centered login card.",
+    },
+    {
+      ok: !loginSource.includes('class="login-hero"'),
+      message: "login.html should remove the large split hero layout.",
+    },
+    {
+      ok: !loginSource.includes('id="loginDemoHint"'),
+      message: "login.html should not expose the demo credential hint anymore.",
+    },
+    {
+      ok: !loginSource.includes('id="nextDestination"'),
+      message: "login.html should not expose the destination summary card anymore.",
+    },
+    {
       ok: /<script src="\.\/scripts\/shared\/auth\.js(?:\?v=[^"]+)?"><\/script>/.test(loginSource),
       message: "login.html should load the shared auth runtime.",
     },

@@ -6,8 +6,8 @@ const PWCLI = `${CODEX_HOME}/skills/playwright/scripts/playwright_cli.sh`;
 const SESSION = `login_${process.pid}_${Date.now().toString(36)}_${Math.floor(Math.random() * 1000)}`;
 const PORT = 4177;
 const PAGE_URL = `http://127.0.0.1:${PORT}/workspace.html`;
-const DEMO_USERNAME = "zm-admin";
-const DEMO_PASSWORD = "zm123456";
+const USERNAME = "alice";
+const PASSWORD = "secret-123";
 
 function runPw(args) {
   return execFileSync(PWCLI, [`-s=${SESSION}`, ...args], {
@@ -97,9 +97,9 @@ async function main() {
             };
           }
 
-          username.value = ${JSON.stringify(DEMO_USERNAME)};
+          username.value = ${JSON.stringify(USERNAME)};
           username.dispatchEvent(new Event("input", { bubbles: true }));
-          password.value = ${JSON.stringify(DEMO_PASSWORD)};
+          password.value = ${JSON.stringify(PASSWORD)};
           password.dispatchEvent(new Event("input", { bubbles: true }));
           form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
 
@@ -153,6 +153,10 @@ async function main() {
 
     if (!finalState.hasWorkspace) {
       throw new Error("Successful login should render the workspace shell.");
+    }
+
+    if (!finalState.sessionLabel.includes(USERNAME)) {
+      throw new Error(`Successful login should keep the entered username in the session UI. Got ${finalState.sessionLabel}`);
     }
 
     console.log("PASS: protected pages redirect through login and recover the workspace after sign-in.");

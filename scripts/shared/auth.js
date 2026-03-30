@@ -2,11 +2,6 @@
   const AUTH_STORAGE_KEY = "zm-studio-auth-session";
   const AUTH_BYPASS_PARAM = "codex-test-auth";
   const DEFAULT_AFTER_LOGIN_PATH = "./workspace.html";
-  const DEMO_CREDENTIALS = Object.freeze({
-    username: "zm-admin",
-    password: "zm123456",
-    displayName: "ZM Admin",
-  });
 
   function isAllowedDestination(pathname) {
     return /\/(?:workspace|projects|assets)\.html$/u.test(pathname);
@@ -125,21 +120,18 @@
 
   function login(username, password) {
     const normalizedUsername = typeof username === "string" ? username.trim() : "";
-    const normalizedPassword = typeof password === "string" ? password : "";
+    const normalizedPassword = typeof password === "string" ? password.trim() : "";
 
-    if (
-      normalizedUsername !== DEMO_CREDENTIALS.username ||
-      normalizedPassword !== DEMO_CREDENTIALS.password
-    ) {
+    if (!normalizedUsername || !normalizedPassword) {
       return {
         ok: false,
-        message: "账号或密码不正确，请使用页面里的演示账号登录。",
+        message: "请输入用户名和密码。",
       };
     }
 
     const session = writeSession({
-      username: DEMO_CREDENTIALS.username,
-      displayName: DEMO_CREDENTIALS.displayName,
+      username: normalizedUsername,
+      displayName: normalizedUsername,
       loginAt: new Date().toISOString(),
     });
 
@@ -183,7 +175,7 @@
       return "Preview Access";
     }
 
-    return readSession()?.displayName || "Studio Access";
+    return readSession()?.displayName || "ZM Studio";
   }
 
   function bindSessionUi() {
@@ -220,7 +212,6 @@
 
   window.ZMAuth = {
     AUTH_BYPASS_PARAM,
-    DEMO_CREDENTIALS,
     readSession,
     clearSession,
     isBypassEnabled,

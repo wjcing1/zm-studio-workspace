@@ -1,5 +1,5 @@
-const CACHE_NAME = "zm-studio-shell-v6";
-const APP_VERSION = "2026-03-30-auth-1";
+const CACHE_NAME = "zm-studio-shell-v7";
+const APP_VERSION = "2026-03-30-auth-2";
 const APP_BASE_URL = new URL("./", self.location.href);
 const NAVIGATION_FALLBACK = new URL("./workspace.html", APP_BASE_URL).toString();
 const APP_SCOPE_PATH = APP_BASE_URL.pathname.endsWith("/") ? APP_BASE_URL.pathname : `${APP_BASE_URL.pathname}/`;

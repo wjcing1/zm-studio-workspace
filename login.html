@@ -14,73 +14,42 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icons/app-icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="./icons/app-icon.svg" />
-    <link rel="stylesheet" href="./styles/shared.css?v=2026-03-30-auth-1" />
-    <link rel="stylesheet" href="./styles/login.css?v=2026-03-30-auth-1" />
-    <script src="./scripts/shared/auth.js?v=2026-03-30-auth-1"></script>
+    <link rel="stylesheet" href="./styles/shared.css?v=2026-03-30-auth-2" />
+    <link rel="stylesheet" href="./styles/login.css?v=2026-03-30-auth-2" />
+    <script src="./scripts/shared/auth.js?v=2026-03-30-auth-2"></script>
   </head>
   <body data-page="zm-login">
     <main class="login-shell">
-      <section class="login-hero">
-        <a class="login-brand" href="./index.html" aria-label="Return to splash">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 3 19 7v10l-7 4-7-4V7Z"></path>
-          </svg>
-          <span>zm studio</span>
-        </a>
-
-        <div class="login-story">
-          <p class="login-kicker">Studio Access</p>
-          <h1>开屏结束后，先在这里完成登录。</h1>
-          <p class="login-copy">
-            现在的入口流程会从开屏页进入登录页，登录成功后再回到工作台、项目页或资源页。
-          </p>
-        </div>
-
-        <div class="login-route-card">
-          <div class="route-label">Next Destination</div>
-          <div class="route-value" id="nextDestination">Workspace</div>
-          <p class="route-copy">未登录访问受保护页面时，也会自动回到这里完成身份校验。</p>
-        </div>
-      </section>
-
-      <section class="login-panel panel-surface" aria-label="Login panel">
-        <div class="login-panel-head">
-          <p class="login-panel-kicker">Sign In</p>
-          <h2>进入你的 ZM Studio 空间</h2>
-          <p class="login-panel-copy">先用演示账号跑通流程，后面再把它替换成真实后端鉴权也会比较顺。</p>
+      <section class="login-card" aria-label="Login panel">
+        <div class="login-card-head">
+          <h1>登录</h1>
         </div>
 
         <form class="login-form" id="loginForm">
           <label class="login-field" for="loginUsername">
-            <span>账号</span>
-            <input id="loginUsername" name="username" class="login-input" type="text" autocomplete="username" placeholder="请输入账号" />
+            <input id="loginUsername" name="username" class="login-input" type="text" autocomplete="username" placeholder="用户名" />
           </label>
 
           <label class="login-field" for="loginPassword">
-            <span>密码</span>
             <input
               id="loginPassword"
               name="password"
               class="login-input"
               type="password"
               autocomplete="current-password"
-              placeholder="请输入密码"
+              placeholder="密码"
             />
           </label>
 
-          <button class="login-submit" id="loginSubmit" type="submit">登录并进入工作台</button>
+          <button class="login-submit" id="loginSubmit" type="submit">登录</button>
         </form>
 
         <div class="login-status" id="loginStatus" role="status" aria-live="polite">
-          请输入账号和密码完成登录。
-        </div>
-
-        <div class="login-demo" id="loginDemoHint">
-          演示账号加载中…
+          请输入用户名和密码。
         </div>
       </section>
     </main>
 
-    <script type="module" src="./scripts/login-page.js?v=2026-03-30-auth-1"></script>
+    <script type="module" src="./scripts/login-page.js?v=2026-03-30-auth-2"></script>
   </body>
 </html>

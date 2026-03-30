@@ -6,6 +6,8 @@ const checks = [
   ["node", ["tests/verify-github-pages-compat.mjs"]],
   ["node", ["tests/verify-github-pages-build.mjs"]],
   ["node", ["tests/verify-splash-page.mjs"]],
+  ["node", ["tests/verify-login-page.mjs"]],
+  ["node", ["tests/verify-login-flow.mjs"]],
   ["node", ["tests/verify-encoded-splash-route.mjs"]],
   ["node", ["tests/verify-222.mjs"]],
   ["node", ["tests/verify-workspace-page.mjs"]],

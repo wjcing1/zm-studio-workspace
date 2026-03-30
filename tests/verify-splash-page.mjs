@@ -62,16 +62,16 @@ async function main() {
       message: "splash.js should drive the animation loop with requestAnimationFrame.",
     },
     {
-      ok: splashSource.includes('data-target-page="./workspace.html"'),
-      message: "开屏动画.html should target workspace.html as the main app page.",
+      ok: splashSource.includes('data-target-page="./login.html"'),
+      message: "开屏动画.html should target login.html as the next page after the intro.",
     },
     {
-      ok: splashSource.includes('href="./workspace.html"'),
-      message: "开屏动画.html should link into workspace.html.",
+      ok: splashSource.includes('href="./login.html"'),
+      message: "开屏动画.html should link into login.html.",
     },
     {
-      ok: scriptSource.includes("./workspace.html"),
-      message: "splash.js should navigate into workspace.html after the intro.",
+      ok: scriptSource.includes("./login.html"),
+      message: "splash.js should navigate into login.html after the intro.",
     },
   ];
 

@@ -1,0 +1,13 @@
+{
+	"nodes":[
+		{"id":"25849c74ae8cddc1","x":-52,"y":-120,"width":250,"height":60,"type":"text","text":"AI原生的白板"},
+		{"id":"b9a9e532bcee7345","x":-52,"y":-380,"width":250,"height":60,"type":"text","text":"建筑渲染Skills"},
+		{"id":"c220dd6e061d3bf6","x":220,"y":-380,"width":250,"height":60,"type":"text","text":"AI把控全局，自我迭代。"},
+		{"id":"e3d0bcc510ca212e","x":-360,"y":-380,"width":250,"height":60,"type":"text","text":"场地调研skills"}
+	],
+	"edges":[
+		{"id":"1d11b4c9f41acf80","fromNode":"25849c74ae8cddc1","fromSide":"top","toNode":"b9a9e532bcee7345","toSide":"bottom"},
+		{"id":"7bbf918db13ded15","fromNode":"e3d0bcc510ca212e","fromSide":"bottom","toNode":"25849c74ae8cddc1","toSide":"top"},
+		{"id":"49f306244ac92d98","fromNode":"25849c74ae8cddc1","fromSide":"top","toNode":"c220dd6e061d3bf6","toSide":"bottom"}
+	]
+}

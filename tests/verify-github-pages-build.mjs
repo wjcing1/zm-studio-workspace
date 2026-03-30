@@ -21,6 +21,7 @@ async function main() {
 
   const mustExist = [
     "dist/index.html",
+    "dist/login.html",
     "dist/workspace.html",
     "dist/projects.html",
     "dist/assets.html",

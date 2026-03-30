@@ -14,8 +14,10 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icons/app-icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="./icons/app-icon.svg" />
-    <link rel="stylesheet" href="./styles/shared.css?v=2026-03-29-pages-1" />
-    <link rel="stylesheet" href="./styles/assets.css?v=2026-03-29-pages-1" />
+    <script src="./scripts/shared/auth.js?v=2026-03-30-auth-1"></script>
+    <script src="./scripts/shared/auth-guard.js?v=2026-03-30-auth-1"></script>
+    <link rel="stylesheet" href="./styles/shared.css?v=2026-03-30-auth-1" />
+    <link rel="stylesheet" href="./styles/assets.css?v=2026-03-30-auth-1" />
   </head>
   <body data-page="zm-assets">
     <div class="app-shell">
@@ -54,6 +56,11 @@
             Assets
           </a>
         </nav>
+
+        <div class="session-cluster" aria-label="Session actions">
+          <div class="session-chip" data-auth-session-label>Studio Access</div>
+          <button class="session-link" type="button" data-auth-logout>Log Out</button>
+        </div>
       </header>
 
       <main class="page-main" aria-label="Assets page">
@@ -125,6 +132,6 @@
       </main>
     </div>
 
-    <script type="module" src="./scripts/assets-page.js?v=2026-03-29-pages-1"></script>
+    <script type="module" src="./scripts/assets-page.js?v=2026-03-30-auth-1"></script>
   </body>
 </html>

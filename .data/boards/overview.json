@@ -17,7 +17,7 @@
         "y": 120,
         "w": 360,
         "h": "auto",
-        "content": "Projects and canvases are now connected.\n\n- click any project card to open its board\n- or jump in from the Projects table\n- double click anywhere to add a note\nPresence test\nPresence test\nPresence test\nPresence test\nPresence test\nPresence test"
+        "content": "Projects and canvases are now connected.\n\n- click any project card to open its board\n- or jump in from the Projects table\n- double click anywhere to add a note\nPresence test\nPresence test\nPresence test\nPresence test\nPresence test\nPresence test\nPresence test"
       },
       {
         "id": "projects-cta",
@@ -104,5 +104,5 @@
     ],
     "edges": []
   },
-  "savedAt": "2026-03-29T12:28:12.010Z"
+  "savedAt": "2026-03-30T19:28:10.194Z"
 }

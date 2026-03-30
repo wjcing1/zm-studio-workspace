@@ -6,6 +6,7 @@ const root = process.cwd();
 const distDir = path.join(root, "dist");
 const filesToCopy = [
   "index.html",
+  "login.html",
   "workspace.html",
   "projects.html",
   "assets.html",

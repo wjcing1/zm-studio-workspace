@@ -4,7 +4,7 @@ import {
   projectDatabase,
   statusClass,
 } from "./shared/studio-data-client.js";
-import { setupWebApp } from "./shared/register-web-app.js?v=2026-03-29-pages-1";
+import { setupWebApp } from "./shared/register-web-app.js?v=2026-03-30-auth-1";
 
 setupWebApp();
 

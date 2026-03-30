@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import process from "node:process";
 
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-const PAGE_URL = "http://127.0.0.1:4173/workspace.html?project=PRJ-002";
+const PAGE_URL = "http://127.0.0.1:4173/workspace.html?project=PRJ-002&codex-test-auth=1";
 
 function countMatches(source, pattern) {
   return (source.match(pattern) || []).length;

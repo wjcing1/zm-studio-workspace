@@ -175,7 +175,7 @@
       return "Preview Access";
     }
 
-    return readSession()?.displayName || "Studio Access";
+    return readSession()?.displayName || "ZM Studio";
   }
 
   function bindSessionUi() {

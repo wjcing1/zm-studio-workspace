@@ -14,20 +14,35 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icons/app-icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="./icons/app-icon.svg" />
-    <link rel="stylesheet" href="./styles/shared.css?v=2026-03-30-auth-2" />
-    <link rel="stylesheet" href="./styles/login.css?v=2026-03-30-auth-2" />
-    <script src="./scripts/shared/auth.js?v=2026-03-30-auth-2"></script>
+    <link rel="stylesheet" href="./styles/shared.css?v=2026-03-30-auth-3" />
+    <link rel="stylesheet" href="./styles/login.css?v=2026-03-30-auth-3" />
+    <script src="./scripts/shared/auth.js?v=2026-03-30-auth-3"></script>
   </head>
   <body data-page="zm-login">
     <main class="login-shell">
       <section class="login-card" aria-label="Login panel">
+        <a class="login-brand" href="./index.html" aria-label="Back to splash">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3 19 7v10l-7 4-7-4V7Z"></path>
+          </svg>
+          <span>zm studio</span>
+        </a>
+
         <div class="login-card-head">
-          <h1>登录</h1>
+          <div class="login-kicker">Studio Access</div>
         </div>
 
         <form class="login-form" id="loginForm">
           <label class="login-field" for="loginUsername">
-            <input id="loginUsername" name="username" class="login-input" type="text" autocomplete="username" placeholder="用户名" />
+            <input
+              id="loginUsername"
+              name="username"
+              class="login-input"
+              type="text"
+              autocomplete="username"
+              placeholder="用户名"
+              aria-label="用户名"
+            />
           </label>
 
           <label class="login-field" for="loginPassword">
@@ -38,18 +53,17 @@
               type="password"
               autocomplete="current-password"
               placeholder="密码"
+              aria-label="密码"
             />
           </label>
 
           <button class="login-submit" id="loginSubmit" type="submit">登录</button>
         </form>
 
-        <div class="login-status" id="loginStatus" role="status" aria-live="polite">
-          请输入用户名和密码。
-        </div>
+        <div class="login-status" id="loginStatus" role="status" aria-live="polite"></div>
       </section>
     </main>
 
-    <script type="module" src="./scripts/login-page.js?v=2026-03-30-auth-2"></script>
+    <script type="module" src="./scripts/login-page.js?v=2026-03-30-auth-3"></script>
   </body>
 </html>

@@ -1,4 +1,4 @@
-import { setupWebApp } from "./shared/register-web-app.js?v=2026-03-30-auth-2";
+import { setupWebApp } from "./shared/register-web-app.js?v=2026-03-30-auth-3";
 
 setupWebApp();
 
@@ -38,6 +38,7 @@ if (auth && usernameInput && passwordInput && loginForm && loginStatus && loginS
       }, 160);
     });
 
+    setStatus("");
     usernameInput.focus();
   }
 }

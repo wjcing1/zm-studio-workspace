@@ -1,12 +1,14 @@
 import {
   assetsDatabase,
+  buildWorkspaceLink,
   escapeHtml,
   filters,
   icon,
   nl2br,
+  projectIndex,
   studioData,
 } from "./shared/studio-data-client.js";
-import { setupWebApp } from "./shared/register-web-app.js?v=2026-03-29-pages-1";
+import { setupWebApp } from "./shared/register-web-app.js?v=2026-03-30-auth-1";
 
 setupWebApp();
 
@@ -104,20 +106,55 @@ function renderAssets() {
                 <img src="${escapeHtml(asset.url)}" alt="${escapeHtml(asset.title)}" />
                 <div class="asset-format">${escapeHtml(asset.format)}</div>
                 <div class="asset-overlay">
-                  <div class="asset-meta">
-                    ${asset.category === "3D" ? icon("box") : icon("image")}
-                    <span>${escapeHtml(asset.category)}</span>
-                  </div>
-                  <h3 class="asset-title">${escapeHtml(asset.title)}</h3>
-                  <div class="asset-footer">
-                    <span class="asset-size">${escapeHtml(asset.size)}</span>
-                    <span class="download-btn" aria-hidden="true">${icon("download")}</span>
-                  </div>
+                  ${renderAssetOverlay(asset)}
                 </div>
               </article>
             `,
           )
           .join("");
+}
+
+function renderAssetOverlay(asset) {
+  const project = asset.projectId ? projectIndex.get(asset.projectId) : null;
+  const categoryIcon = asset.category === "3D" ? icon("box") : icon("image");
+
+  return `
+    <div class="asset-meta">
+      <span class="asset-meta-group">
+        ${categoryIcon}
+        <span>${escapeHtml(asset.category)}</span>
+      </span>
+      ${project ? `<span class="asset-project-pill">${escapeHtml(project.id)}</span>` : ""}
+    </div>
+    <h3 class="asset-title">${escapeHtml(asset.title)}</h3>
+    <div class="asset-source">${escapeHtml(asset.sourceLabel || "")}</div>
+    <div class="asset-footer">
+      <span class="asset-size">${escapeHtml(asset.size)}</span>
+      ${project ? `<span class="asset-project-name">${escapeHtml(project.name)}</span>` : ""}
+    </div>
+    <div class="asset-actions">
+      ${
+        project
+          ? `
+            <a class="asset-action" href="${escapeHtml(buildWorkspaceLink(asset.projectId))}">
+              ${icon("arrow")}
+              <span>Open project</span>
+            </a>
+          `
+          : ""
+      }
+      ${
+        asset.fileUrl
+          ? `
+            <a class="asset-action is-secondary" href="${escapeHtml(asset.fileUrl)}" target="_blank" rel="noreferrer noopener">
+              ${icon("download")}
+              <span>Open file</span>
+            </a>
+          `
+          : ""
+      }
+    </div>
+  `;
 }
 
 function renderAssistant() {

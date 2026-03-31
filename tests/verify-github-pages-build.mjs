@@ -21,9 +21,11 @@ async function main() {
 
   const mustExist = [
     "dist/index.html",
+    "dist/login.html",
     "dist/workspace.html",
     "dist/projects.html",
     "dist/assets.html",
+    "dist/media/assets/dubai-booth-plan.png",
     "dist/开屏动画.html",
     "dist/sw.js",
     "dist/manifest.webmanifest",

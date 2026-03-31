@@ -4,7 +4,7 @@ import process from "node:process";
 const CODEX_HOME = process.env.CODEX_HOME || `${process.env.HOME}/.codex`;
 const PWCLI = `${CODEX_HOME}/skills/playwright/scripts/playwright_cli.sh`;
 const SESSION = `wam_${process.pid}_${Date.now().toString(36)}_${Math.floor(Math.random() * 1000)}`;
-const PAGE_URL = "http://127.0.0.1:4173/assets.html";
+const PAGE_URL = "http://127.0.0.1:4173/assets.html?codex-test-auth=1";
 
 function runPw(args) {
   return execFileSync(PWCLI, [`-s=${SESSION}`, ...args], {

@@ -46,11 +46,11 @@ async function main() {
     }
 
     const html = await response.text();
-    if (!html.includes('data-page="zm-splash"')) {
-      throw new Error("Encoded splash route did not return the splash HTML document");
+    if (!html.includes('url=./index.html')) {
+      throw new Error("Encoded splash route should now forward legacy splash links into index.html");
     }
 
-    console.log("PASS: encoded splash route resolves to the splash page.");
+    console.log("PASS: encoded splash route resolves to the legacy splash shim.");
   } finally {
     server.kill("SIGTERM");
     await wait(300);

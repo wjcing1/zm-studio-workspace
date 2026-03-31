@@ -69,7 +69,7 @@
 
 .asset-card {
   position: relative;
-  min-height: 280px;
+  min-height: 340px;
   overflow: hidden;
   border-radius: 26px;
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -80,7 +80,7 @@
 .asset-card img {
   width: 100%;
   height: 100%;
-  min-height: 280px;
+  min-height: 340px;
   object-fit: cover;
 }
 
@@ -103,7 +103,7 @@
   position: absolute;
   inset: auto 0 0;
   display: grid;
-  gap: 12px;
+  gap: 10px;
   padding: 24px 20px 18px;
   background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.88));
 }
@@ -121,6 +121,27 @@
   font-size: 12px;
 }
 
+.asset-meta-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.asset-project-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
 .asset-title {
   margin: 0;
   font-size: 22px;
@@ -128,10 +149,64 @@
   letter-spacing: -0.04em;
 }
 
+.asset-source {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
 .asset-size,
 .download-btn {
   color: var(--muted);
   font-size: 12px;
+}
+
+.asset-project-name {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 12px;
+}
+
+.asset-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.asset-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text);
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 700;
+  transition:
+    transform 160ms ease,
+    background 160ms ease;
+}
+
+.asset-action:hover,
+.asset-action:focus-visible {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.asset-action.is-secondary {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.asset-action .icon {
+  width: 14px;
+  height: 14px;
 }
 
 .assistant-panel {
@@ -306,5 +381,11 @@
 
   .assistant-panel {
     position: static;
+  }
+}
+
+@media (max-width: 640px) {
+  .asset-actions {
+    grid-template-columns: 1fr;
   }
 }

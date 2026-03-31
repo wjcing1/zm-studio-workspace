@@ -1,4 +1,4 @@
-import { setupWebApp } from "./scripts/shared/register-web-app.js?v=2026-03-29-pages-1";
+import { setupWebApp } from "./scripts/shared/register-web-app.js?v=2026-03-30-auth-3";
 
 const FONT_GRID = {
   S: [
@@ -54,7 +54,7 @@ const prefersReducedMotion =
 const READY_DELAY_MS = prefersReducedMotion ? 120 : 1600;
 const AUTO_EXIT_DELAY_MS = prefersReducedMotion ? 900 : 3200;
 const EXIT_DURATION_MS = prefersReducedMotion ? 120 : 720;
-const TARGET_URL = "./workspace.html";
+const TARGET_URL = "./login.html";
 
 const canvas = document.getElementById("splashCanvas");
 const shell = document.querySelector(".splash-shell");

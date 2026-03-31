@@ -3,7 +3,7 @@ import process from "node:process";
 
 const CODEX_HOME = process.env.CODEX_HOME || `${process.env.HOME}/.codex`;
 const PWCLI = `${CODEX_HOME}/skills/playwright/scripts/playwright_cli.sh`;
-const PAGE_URL = "http://127.0.0.1:4173/assets.html";
+const PAGE_URL = "http://127.0.0.1:4173/assets.html?codex-test-auth=1";
 let session = buildSessionId();
 
 function buildSessionId() {

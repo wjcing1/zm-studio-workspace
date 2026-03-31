@@ -28,6 +28,20 @@ async function main() {
       nodes: [
         { id: "a", type: "text", x: 0, y: 0, w: 240, h: 120, content: "Alpha" },
         { id: "b", type: "text", x: 300, y: 0, w: 240, h: 120, content: "Beta" },
+        {
+          id: "file-1",
+          type: "file",
+          x: 80,
+          y: 220,
+          w: 320,
+          h: 240,
+          file: "/.data/uploads/verify/moodboard.svg",
+          content: "/.data/uploads/verify/moodboard.svg",
+          title: "moodboard.svg",
+          mimeType: "image/svg+xml",
+          fileKind: "image",
+          size: 512,
+        },
       ],
       connections: [{ from: "a", to: "b" }],
     },
@@ -43,6 +57,18 @@ async function main() {
     nodes: [
       { id: "group-1", type: "group", x: 10, y: 20, width: 480, height: 320, label: "Cluster" },
       { id: "note-1", type: "text", x: 40, y: 60, width: 220, height: 140, text: "Hello" },
+      {
+        id: "asset-1",
+        type: "file",
+        x: 320,
+        y: 90,
+        width: 320,
+        height: 240,
+        file: "/.data/uploads/verify/reference.pdf",
+        title: "reference.pdf",
+        mimeType: "application/pdf",
+        fileKind: "pdf",
+      },
     ],
     edges: [{ id: "edge-1", fromNode: "group-1", toNode: "note-1", fromSide: "right", toSide: "left" }],
   });
@@ -75,12 +101,36 @@ async function main() {
       message: "Board helpers should export JSON Canvas-compatible nodes and edges arrays.",
     },
     {
+      ok:
+        exported.nodes.some(
+          (node) =>
+            node.id === "file-1" &&
+            node.type === "file" &&
+            node.file === "/.data/uploads/verify/moodboard.svg" &&
+            node.mimeType === "image/svg+xml" &&
+            node.fileKind === "image",
+        ),
+      message: "JSON Canvas export should preserve first-class file nodes and their metadata.",
+    },
+    {
       ok: exported.edges[0]?.fromNode === "a" && exported.edges[0]?.toNode === "b",
       message: "JSON Canvas export should map internal edge endpoints to fromNode/toNode.",
     },
     {
       ok: imported.nodes[0]?.type === "group" && imported.edges[0]?.id === "edge-1",
       message: "JSON Canvas import should keep group nodes and edge IDs intact.",
+    },
+    {
+      ok:
+        imported.nodes.some(
+          (node) =>
+            node.id === "asset-1" &&
+            node.type === "file" &&
+            node.file === "/.data/uploads/verify/reference.pdf" &&
+            node.mimeType === "application/pdf" &&
+            node.fileKind === "pdf",
+        ),
+      message: "JSON Canvas import should preserve file nodes as first-class file attachments.",
     },
     {
       ok: nearby[0]?.id === "near",

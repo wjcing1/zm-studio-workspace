@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import process from "node:process";
 
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-const PAGE_URL = "http://127.0.0.1:4173/workspace.html?project=PRJ-002";
+const PAGE_URL = "http://127.0.0.1:4173/workspace.html?project=PRJ-002&codex-test-auth=1";
 
 function countMatches(source, pattern) {
   return (source.match(pattern) || []).length;
@@ -27,15 +27,15 @@ try {
 
   const checks = [
     {
-      ok: html.includes("Canvas / Projects / Dark Matter E-commerce"),
+      ok: html.includes("Canvas / Projects / 哈萨克斯坦电梯展"),
       message: "Project route should render the project breadcrumb.",
     },
     {
-      ok: html.includes("Dark Matter E-commerce"),
+      ok: html.includes("哈萨克斯坦电梯展"),
       message: "Project route should render the project title.",
     },
     {
-      ok: html.includes("Milan"),
+      ok: html.includes("哈萨克斯坦"),
       message: "Project route should render project metadata.",
     },
     {

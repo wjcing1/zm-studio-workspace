@@ -1,13 +1,20 @@
 import http from "node:http";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import OpenAI from "openai";
 import { createBoardStore } from "./board-store.mjs";
 import { getCollaborationConfig } from "./collaboration-config.mjs";
+import { createMemoryStore } from "./memory-store.mjs";
 import { createRealtimeCollaborationServer } from "./realtime-collaboration-server.mjs";
 import { studioData } from "./studio-data.mjs";
+import {
+  buildMemoryLookupQuery,
+  deriveMemoryScopes,
+  extractDurableMemories,
+  formatMemoriesForPrompt,
+} from "./workspace-memory.mjs";
 
 const ROOT_DIR = process.cwd();
 
@@ -45,10 +52,15 @@ loadDotEnv();
 const PORT = Number(process.env.PORT || 4173);
 const MINIMAX_BASE_URL = process.env.MINIMAX_BASE_URL || "https://api.minimaxi.com/v1";
 const MODEL = process.env.MINIMAX_MODEL || "MiniMax-M2.7";
+const MAX_UPLOAD_BYTES = Number(process.env.UPLOAD_MAX_BYTES || 25 * 1024 * 1024);
 const collaborationConfig = getCollaborationConfig(process.env, ROOT_DIR);
+const uploadStorageDir = resolveUploadStorageDir(process.env.UPLOAD_STORE_DIR || path.join(ROOT_DIR, ".data", "uploads"));
 const boardStore = createBoardStore({
   provider: collaborationConfig.provider,
   storageDir: collaborationConfig.storageDir,
+});
+const memoryStore = createMemoryStore({
+  storageDir: process.env.MEMORY_STORE_DIR || path.join(ROOT_DIR, ".data", "memory"),
 });
 const collaborationServer = createRealtimeCollaborationServer({
   boardStore,
@@ -68,10 +80,13 @@ const MIME_TYPES = {
   ".json": "application/json; charset=utf-8",
   ".webmanifest": "application/manifest+json; charset=utf-8",
   ".css": "text/css; charset=utf-8",
+  ".gif": "image/gif",
   ".png": "image/png",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
   ".svg": "image/svg+xml",
+  ".pdf": "application/pdf",
   ".ico": "image/x-icon",
   ".txt": "text/plain; charset=utf-8",
 };
@@ -111,6 +126,17 @@ function safeFilePath(requestPath) {
   return resolvedPath;
 }
 
+function resolveUploadStorageDir(storageDir) {
+  const resolvedStorageDir = path.resolve(storageDir);
+  const resolvedRoot = path.resolve(ROOT_DIR);
+
+  if (!resolvedStorageDir.startsWith(resolvedRoot)) {
+    throw new Error("UPLOAD_STORE_DIR must stay inside the workspace root.");
+  }
+
+  return resolvedStorageDir;
+}
+
 async function parseJsonBody(request) {
   const chunks = [];
 
@@ -121,6 +147,70 @@ async function parseJsonBody(request) {
   const raw = Buffer.concat(chunks).toString("utf8");
   if (!raw) return {};
   return JSON.parse(raw);
+}
+
+async function parseRawBody(request, maxBytes = MAX_UPLOAD_BYTES) {
+  const chunks = [];
+  let size = 0;
+
+  for await (const chunk of request) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    size += buffer.length;
+
+    if (size > maxBytes) {
+      const error = new Error(`Uploads must be ${maxBytes} bytes or smaller.`);
+      error.code = "UPLOAD_TOO_LARGE";
+      throw error;
+    }
+
+    chunks.push(buffer);
+  }
+
+  return Buffer.concat(chunks);
+}
+
+function normalizeMimeType(value) {
+  if (typeof value !== "string") return "";
+  return value.split(";")[0].trim().toLowerCase();
+}
+
+function sanitizePathSegment(value, fallback = "board") {
+  const safe = String(value || "")
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return safe || fallback;
+}
+
+function sanitizeUploadFilename(value) {
+  const basename = path.basename(String(value || "upload.bin").trim()) || "upload.bin";
+  const extension = path.extname(basename).toLowerCase();
+  const stem = basename.slice(0, basename.length - extension.length) || "upload";
+  const safeStem = sanitizePathSegment(stem, "upload");
+  const safeExtension = extension.replace(/[^a-z0-9.]/g, "");
+  return `${safeStem}${safeExtension}`;
+}
+
+function inferMimeTypeFromFilename(filename, fallback = "application/octet-stream") {
+  const extension = path.extname(filename).toLowerCase();
+  const mapped = MIME_TYPES[extension];
+  return mapped ? normalizeMimeType(mapped) : fallback;
+}
+
+function inferUploadKind(mimeType, filename = "") {
+  const normalizedMimeType = normalizeMimeType(mimeType);
+  const extension = path.extname(filename).toLowerCase();
+
+  if (normalizedMimeType.startsWith("image/")) {
+    return "image";
+  }
+
+  if (normalizedMimeType === "application/pdf" || extension === ".pdf") {
+    return "pdf";
+  }
+
+  return "other";
 }
 
 function buildDeveloperPrompt() {
@@ -218,6 +308,7 @@ function normalizeWorkspaceBody(body) {
   return {
     board: {
       key: typeof board.key === "string" ? board.key.slice(0, 80) : "workspace",
+      projectId: typeof board.projectId === "string" ? board.projectId.slice(0, 80) : "",
       title: typeof board.title === "string" ? board.title.slice(0, 120) : "Workspace",
       description: typeof board.description === "string" ? board.description.slice(0, 800) : "",
       nodeCount: typeof board.nodeCount === "number" ? board.nodeCount : Array.isArray(board.nodes) ? board.nodes.length : 0,
@@ -253,11 +344,12 @@ function normalizeWorkspaceBody(body) {
   };
 }
 
-function buildWorkspaceAssistantPrompt(workspaceContext) {
+function buildWorkspaceAssistantPrompt(workspaceContext, memorySection = "Long-term memory:\n- none") {
   return [
     "You are the workspace canvas copilot for ZM Studio.",
     "You help the user think on a spatial canvas and you may directly modify the active board.",
     "Prioritize context in this order: hovered node, selected nodes, nearby nodes, connected nodes, visible nodes, then board summary.",
+    "Use long-term memory only as durable guidance. Prefer current user instructions if they conflict.",
     "Return JSON only with this shape:",
     '{"reply":"short helpful response","operations":[{"type":"addNode","node":{}},{"type":"updateNode","id":"node-id","patch":{}},{"type":"removeNode","id":"node-id"},{"type":"addEdge","edge":{}},{"type":"removeEdge","id":"edge-id"}]}',
     "Allowed node types: text, link, group, image, project.",
@@ -267,6 +359,8 @@ function buildWorkspaceAssistantPrompt(workspaceContext) {
     "Prefer small, precise edits over rewriting the whole board.",
     "If the request is only analytical, return operations as an empty array.",
     "Match the user's language when possible.",
+    "",
+    memorySection,
     "",
     "Workspace context:",
     JSON.stringify(workspaceContext, null, 2),
@@ -434,6 +528,17 @@ async function handleWorkspaceAssistant(request, response) {
   }
 
   const workspaceContext = normalizeWorkspaceBody(body);
+  const memoryScopes = deriveMemoryScopes(workspaceContext);
+  const memoryQuery = buildMemoryLookupQuery({
+    workspaceContext,
+    messages,
+  });
+  const relevantMemories = await memoryStore.findRelevantMemories({
+    scopes: memoryScopes,
+    query: memoryQuery,
+    limit: 5,
+  });
+  const memorySection = formatMemoriesForPrompt(relevantMemories);
 
   try {
     const completion = await client.chat.completions.create({
@@ -441,7 +546,7 @@ async function handleWorkspaceAssistant(request, response) {
       messages: [
         {
           role: "system",
-          content: buildWorkspaceAssistantPrompt(workspaceContext),
+          content: buildWorkspaceAssistantPrompt(workspaceContext, memorySection),
         },
         ...messages,
       ],
@@ -463,6 +568,23 @@ async function handleWorkspaceAssistant(request, response) {
       reply = typeof payload.reply === "string" && payload.reply.trim() ? payload.reply.trim() : rawReply;
       operations = normalizeWorkspaceOperations(payload.operations);
     } catch {}
+
+    const extractedMemories = extractDurableMemories({
+      workspaceContext,
+      messages,
+    });
+
+    try {
+      if (relevantMemories.length > 0) {
+        await memoryStore.touchMemories(relevantMemories.map((item) => item.id));
+      }
+
+      if (extractedMemories.length > 0) {
+        await memoryStore.upsertMemories(extractedMemories);
+      }
+    } catch (error) {
+      console.warn(error instanceof Error ? error.message : "Unable to persist workspace memory.");
+    }
 
     sendJson(response, 200, {
       reply,
@@ -517,6 +639,60 @@ async function handleBoardPut(request, response, boardId) {
       error: error instanceof Error ? error.message : "Unable to save board.",
     });
   }
+}
+
+async function handleUploadPost(request, response) {
+  let body;
+
+  try {
+    body = await parseRawBody(request);
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "UPLOAD_TOO_LARGE") {
+      sendJson(response, 413, { error: error.message });
+      return;
+    }
+
+    sendJson(response, 400, {
+      error: error instanceof Error ? error.message : "Unable to read upload body.",
+    });
+    return;
+  }
+
+  if (!body || body.length === 0) {
+    sendJson(response, 400, { error: "Upload body is required." });
+    return;
+  }
+
+  const boardKey = sanitizePathSegment(request.headers["x-board-key"], "overview");
+  const originalName = sanitizeUploadFilename(request.headers["x-file-name"]);
+  const mimeType = normalizeMimeType(request.headers["content-type"]) || inferMimeTypeFromFilename(originalName);
+  const boardDir = path.join(uploadStorageDir, boardKey);
+  const storedName = `${Date.now()}-${Math.floor(Math.random() * 1000)}-${originalName}`;
+  const storedPath = path.join(boardDir, storedName);
+
+  try {
+    await mkdir(boardDir, { recursive: true });
+    await writeFile(storedPath, body);
+  } catch (error) {
+    sendJson(response, 500, {
+      error: error instanceof Error ? error.message : "Unable to persist upload.",
+    });
+    return;
+  }
+
+  const urlPath = `/${path.relative(ROOT_DIR, storedPath).split(path.sep).join("/")}`;
+
+  sendJson(response, 201, {
+    upload: {
+      boardKey,
+      originalName,
+      storedName,
+      url: urlPath,
+      mimeType,
+      fileKind: inferUploadKind(mimeType, originalName),
+      size: body.length,
+    },
+  });
 }
 
 async function handleStatic(requestPath, response) {
@@ -587,6 +763,11 @@ const server = http.createServer(async (request, response) => {
       await handleBoardPut(request, response, boardId);
       return;
     }
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/uploads") {
+    await handleUploadPost(request, response);
+    return;
   }
 
   if (request.method === "POST" && url.pathname === "/api/chat") {

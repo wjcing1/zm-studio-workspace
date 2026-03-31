@@ -3,16 +3,25 @@ import process from "node:process";
 
 const CODEX_HOME = process.env.CODEX_HOME || `${process.env.HOME}/.codex`;
 const PWCLI = `${CODEX_HOME}/skills/playwright/scripts/playwright_cli.sh`;
-const SESSION = `wwx_${process.pid}_${Date.now().toString(36)}_${Math.floor(Math.random() * 1000)}`;
 const PORT = 4173;
-const PAGE_URL = `http://127.0.0.1:${PORT}/workspace.html`;
+const PAGE_URL = `http://127.0.0.1:${PORT}/workspace.html?codex-test-auth=1`;
+let session = buildSessionId();
+
+function buildSessionId() {
+  return `wwx_${process.pid}_${Date.now().toString(36)}_${Math.floor(Math.random() * 1000)}`;
+}
 
 function runPw(args) {
-  return execFileSync(PWCLI, [`-s=${SESSION}`, ...args], {
+  return execFileSync(PWCLI, [`-s=${session}`, ...args], {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
     timeout: 20000,
   });
+}
+
+function isRetryablePlaywrightError(error) {
+  const message = String(error?.stderr || error?.message || error || "");
+  return /Session closed|EADDRINUSE|Daemon process exited/.test(message);
 }
 
 function extractJsonResult(output) {
@@ -63,63 +72,168 @@ async function main() {
       await waitForServer(PAGE_URL);
     }
 
-    runPw(["open", PAGE_URL]);
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        try {
+          runPw(["kill-all"]);
+        } catch {}
 
-    const result = extractJsonResult(
-      runPw([
-        "eval",
-        `async () => {
-          const textarea = document.querySelector('.canvas-textarea[data-text-node="intro"]');
-          const before = textarea.value;
-          const rect = textarea.getBoundingClientRect();
+        session = buildSessionId();
+        runPw(["open", PAGE_URL]);
+        runPw([
+          "eval",
+          `() => {
+            window.localStorage.removeItem("zm-studio-canvas:overview");
+            return true;
+          }`,
+        ]);
+        try {
+          runPw(["close"]);
+        } catch {}
 
-          textarea.dispatchEvent(
-            new PointerEvent("pointerdown", {
+        session = buildSessionId();
+        runPw(["open", PAGE_URL]);
+
+        const result = extractJsonResult(
+          runPw([
+            "eval",
+            `async () => {
+          const viewport = document.getElementById("canvasViewport");
+          const stage = document.getElementById("canvasStage");
+          const existingIds = [...stage.querySelectorAll(".canvas-node")].map((node) => node.dataset.id);
+          const viewportRect = viewport.getBoundingClientRect();
+          const isBlocked = (point) =>
+            document.elementsFromPoint(point.x, point.y).some((element) =>
+              element?.closest?.(
+                ".canvas-node, .canvas-context-shell, #canvasContextToggle, #canvasToolbar, #assistantCompanion, #workspaceAssistantPanel",
+              ),
+            );
+
+          let spawnPoint = null;
+          for (let y = viewportRect.top + 140; y <= viewportRect.bottom - 120 && !spawnPoint; y += 70) {
+            for (let x = viewportRect.left + 100; x <= viewportRect.right - 100; x += 70) {
+              const candidate = { x, y };
+              if (!isBlocked(candidate)) {
+                spawnPoint = candidate;
+                break;
+              }
+            }
+          }
+
+          if (!spawnPoint) {
+            return { ok: false, reason: "no-blank-canvas-space" };
+          }
+
+          viewport.dispatchEvent(
+            new MouseEvent("dblclick", {
               bubbles: true,
               cancelable: true,
-              clientX: rect.left + 24,
-              clientY: rect.top + 24,
-              pointerId: 1,
-              pointerType: "mouse",
-              button: 0,
-              buttons: 1,
+              clientX: spawnPoint.x,
+              clientY: spawnPoint.y,
             }),
           );
 
-          textarea.focus();
-          textarea.value = before + "\\nTest edit";
-          textarea.dispatchEvent(new Event("input", { bubbles: true }));
-
           await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
+          const newNode = [...stage.querySelectorAll(".canvas-node")].find((node) => !existingIds.includes(node.dataset.id));
+          const textarea = newNode?.querySelector(".canvas-textarea") || null;
+          const initialNodeHeight = newNode?.getBoundingClientRect().height || 0;
+          const placeholderSelected = textarea
+            ? textarea.selectionStart === 0 && textarea.selectionEnd === textarea.value.length
+            : false;
+
+          if (document.activeElement === textarea) {
+            textarea.setRangeText("Quick note", textarea.selectionStart, textarea.selectionEnd, "end");
+            textarea.dispatchEvent(new Event("input", { bubbles: true }));
+            await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+            const longParagraph = Array.from({ length: 12 }, () => "This is a long canvas paragraph used to verify automatic node growth without clipping.")
+              .join(" ");
+            textarea.value = textarea.value + "\\n\\n" + longParagraph;
+            textarea.dispatchEvent(new Event("input", { bubbles: true }));
+            await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+          }
+
+          const storedBoard = JSON.parse(window.localStorage.getItem("zm-studio-canvas:overview") || "null");
+          const storedNode = storedBoard?.nodes?.find((node) => node.id === newNode?.dataset?.id) || null;
+
           return {
+            ok: true,
+            createdNode: newNode?.dataset?.id || null,
             activeElementTag: document.activeElement?.tagName || "",
             activeElementMatches: document.activeElement === textarea,
-            value: textarea.value,
-            selectedIds: [...document.querySelectorAll('.canvas-node.is-selected')].map((node) => node.dataset.id),
+            placeholderSelected,
+            value: textarea?.value || "",
+            initialNodeHeight,
+            expandedNodeHeight: newNode?.getBoundingClientRect().height || 0,
+            textareaClientHeight: textarea?.clientHeight || 0,
+            textareaScrollHeight: textarea?.scrollHeight || 0,
+            storedAutoHeight: storedNode?.autoHeight || 0,
+            selectedIds: [...document.querySelectorAll(".canvas-node.is-selected")].map((node) => node.dataset.id),
           };
         }`,
       ]),
     );
 
-    if (!result.activeElementMatches) {
-      throw new Error(`Text node editor should keep focus when clicked. Active element: ${result.activeElementTag || "<none>"}`);
-    }
+        if (!result.ok) {
+          throw new Error(`Text node creation probe failed: ${result.reason || "unknown reason"}`);
+        }
 
-    if (!result.value.includes("Test edit")) {
-      throw new Error(`Typing into a text node should update its value. Current value: ${result.value}`);
-    }
+        if (!result.createdNode) {
+          throw new Error("Double-clicking blank canvas should create a new text node.");
+        }
 
-    console.log("PASS: text nodes can be focused and edited.");
+        if (!result.activeElementMatches) {
+          throw new Error(
+            `A new text node should enter editing mode immediately after creation. Active element: ${result.activeElementTag || "<none>"}`,
+          );
+        }
+
+        if (!result.placeholderSelected) {
+          throw new Error("A new text node should select its placeholder text so the first keystroke replaces it.");
+        }
+
+        if (!result.value.startsWith("Quick note")) {
+          throw new Error(
+            `Typing into a freshly created text node should replace the placeholder. Current value: ${result.value}`,
+          );
+        }
+
+        if (result.expandedNodeHeight <= result.initialNodeHeight) {
+          throw new Error(
+            `Text nodes should grow as long content is entered. Initial height: ${result.initialNodeHeight} Expanded height: ${result.expandedNodeHeight}`,
+          );
+        }
+
+        if (result.textareaScrollHeight > result.textareaClientHeight + 4) {
+          throw new Error(
+            `Text node editors should expand instead of clipping content. Client height: ${result.textareaClientHeight} Scroll height: ${result.textareaScrollHeight}`,
+          );
+        }
+
+        if (result.storedAutoHeight <= result.initialNodeHeight) {
+          throw new Error(
+            `Expanded text node height should persist into board state. Stored autoHeight: ${result.storedAutoHeight} Initial height: ${result.initialNodeHeight}`,
+          );
+        }
+
+        console.log("PASS: new text nodes enter editing mode, grow with long content, and persist their expanded height.");
+        return;
+      } catch (error) {
+        if (!isRetryablePlaywrightError(error) || attempt === 2) {
+          throw error;
+        }
+      } finally {
+        try {
+          runPw(["close"]);
+        } catch {}
+
+        try {
+          runPw(["kill-all"]);
+        } catch {}
+      }
+    }
   } finally {
-    try {
-      runPw(["close"]);
-    } catch {}
-
-    try {
-      runPw(["kill-all"]);
-    } catch {}
-
     if (server) {
       server.kill("SIGTERM");
       await wait(300);

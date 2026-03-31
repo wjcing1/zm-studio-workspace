@@ -29,6 +29,7 @@ const DEFAULT_COLLABORATION_CONFIG = {
   endpoints: {
     config: "/api/collaboration/config",
     boards: "/api/boards/:boardId",
+    uploads: "/api/uploads",
     realtime: "/api/collaboration/ws",
   },
 };

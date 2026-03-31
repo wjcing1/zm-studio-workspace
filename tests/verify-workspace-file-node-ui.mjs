@@ -149,8 +149,6 @@ async function main() {
                 }),
               );
 
-              addFileNodeBtn.click();
-
               const file = new File(
                 ['<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 100"><rect width="140" height="100" rx="20" fill="#101010"/><circle cx="48" cy="50" r="24" fill="#7dd3fc"/><rect x="82" y="28" width="26" height="44" rx="8" fill="#fef08a"/></svg>'],
                 "moodboard.svg",

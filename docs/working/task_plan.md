@@ -12,9 +12,9 @@ Improve the current workspace canvas interactions so they feel closer to Obsidia
 - [completed] Run targeted and adjacent workspace regressions
 - [completed] Lock the next approved scope: durable `file` nodes for image/PDF attachments, while keeping webpages on the separate `link` path
 - [completed] Write approved design and implementation docs for file nodes
-- [in_progress] Add failing regressions for upload API, file-node board model, and canvas insertion flow
-- [pending] Implement upload persistence and file-node rendering/insertion
-- [pending] Run targeted and adjacent workspace regressions for the new attachment flow
+- [completed] Add failing regressions for upload API, file-node board model, and canvas insertion flow
+- [completed] Implement upload persistence and file-node rendering/insertion
+- [completed] Run targeted and adjacent workspace regressions for the new attachment flow
 
 ## Constraints
 - Keep the current hand-rolled canvas implementation in `scripts/workspace-page.js`.

@@ -263,6 +263,36 @@
         "h": "auto",
         "content": "Start typing...",
         "autoHeight": 170
+      },
+      {
+        "id": "node-1774943691846-763",
+        "type": "text",
+        "x": 1080,
+        "y": 330,
+        "w": 280,
+        "h": "auto",
+        "content": "Quick note\n\nThis is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping.",
+        "autoHeight": 1090
+      },
+      {
+        "id": "node-1774943702819-170",
+        "type": "text",
+        "x": 887,
+        "y": 63,
+        "w": 280,
+        "h": "auto",
+        "content": "Start typing...",
+        "autoHeight": 170
+      },
+      {
+        "id": "node-1774943702852-242",
+        "type": "text",
+        "x": 887,
+        "y": 368,
+        "w": 280,
+        "h": "auto",
+        "content": "Start typing...",
+        "autoHeight": 170
       }
     ],
     "edges": [
@@ -315,8 +345,18 @@
         "fromEnd": "none",
         "toEnd": "arrow",
         "label": ""
+      },
+      {
+        "id": "edge-1774943702890-283",
+        "from": "node-1774943702852-242",
+        "to": "node-1774943702819-170",
+        "fromSide": "top",
+        "toSide": "bottom",
+        "fromEnd": "none",
+        "toEnd": "arrow",
+        "label": ""
       }
     ]
   },
-  "savedAt": "2026-03-31T07:13:11.605Z"
+  "savedAt": "2026-03-31T07:55:33.877Z"
 }

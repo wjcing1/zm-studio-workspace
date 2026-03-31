@@ -17,7 +17,7 @@
     <script src="./scripts/shared/auth.js?v=2026-03-30-auth-3"></script>
     <script src="./scripts/shared/auth-guard.js?v=2026-03-30-auth-3"></script>
     <link rel="stylesheet" href="./styles/shared.css?v=2026-03-30-auth-1" />
-    <link rel="stylesheet" href="./styles/workspace.css?v=2026-03-30-auth-1" />
+    <link rel="stylesheet" href="./styles/workspace.css?v=2026-03-31-file-1" />
   </head>
   <body data-page="zm-workspace">
     <div class="app-shell">
@@ -94,6 +94,7 @@
               </button>
               <div class="canvas-toolbar panel-surface" id="canvasToolbar" aria-label="Canvas tools">
                 <button class="canvas-tool-btn" id="addTextNodeBtn" type="button">Text</button>
+                <button class="canvas-tool-btn" id="addFileNodeBtn" type="button">File</button>
                 <button class="canvas-tool-btn" id="addLinkNodeBtn" type="button">Link</button>
                 <button class="canvas-tool-btn" id="addGroupNodeBtn" type="button">Group</button>
                 <button class="canvas-tool-btn" id="undoCanvasBtn" type="button">Undo</button>
@@ -150,6 +151,12 @@
               accept=".canvas,.json,application/json"
               hidden
             />
+            <input
+              id="canvasFileInput"
+              type="file"
+              accept="image/*,application/pdf"
+              hidden
+            />
 
             <div class="canvas-hud">
               <div class="hud-pill" id="zoomValue">
@@ -175,6 +182,6 @@
       </main>
     </div>
 
-    <script type="module" src="./scripts/workspace-page.js?v=2026-03-30-auth-1"></script>
+    <script type="module" src="./scripts/workspace-page.js?v=2026-03-31-file-1"></script>
   </body>
 </html>

@@ -100,6 +100,7 @@ const state = {
   editing: {
     snapshot: null,
     dirty: false,
+    pendingFocus: null,
   },
   touch: {
     points: {},
@@ -156,13 +157,18 @@ const assistantInput = document.getElementById("assistantInput");
 const assistantSend = document.getElementById("assistantSend");
 const assistantComposer = document.getElementById("assistantComposer");
 const canvasImportInput = document.getElementById("canvasImportInput");
+const canvasFileInput = document.getElementById("canvasFileInput");
 const addTextNodeBtn = document.getElementById("addTextNodeBtn");
+const addFileNodeBtn = document.getElementById("addFileNodeBtn");
 const addLinkNodeBtn = document.getElementById("addLinkNodeBtn");
 const addGroupNodeBtn = document.getElementById("addGroupNodeBtn");
 const undoCanvasBtn = document.getElementById("undoCanvasBtn");
 const redoCanvasBtn = document.getElementById("redoCanvasBtn");
 const canvasImportBtn = document.getElementById("canvasImportBtn");
 const canvasExportBtn = document.getElementById("canvasExportBtn");
+const TEXT_NODE_MIN_TEXTAREA_HEIGHT = 148;
+const TEXT_NODE_MIN_FRAME_HEIGHT = 170;
+const TEXT_NODE_CHROME_HEIGHT = 22;
 
 function createLocalCollaborator() {
   const palette = ["#6ee7b7", "#60a5fa", "#f97316", "#facc15", "#f472b6", "#22d3ee"];
@@ -263,6 +269,46 @@ function currentEditingPresence() {
   }
 
   return null;
+}
+
+function queueTextNodeFocus(nodeId, options = {}) {
+  if (!nodeId) return;
+
+  state.editing.pendingFocus = {
+    nodeId,
+    selectAll: options.selectAll !== false,
+  };
+}
+
+function syncTextNodeAutoHeight(field, node = null) {
+  if (!field?.matches?.("[data-text-node]")) return;
+  if (node && node.h !== "auto") return;
+
+  const nodeElement = field.closest(".canvas-node");
+  const dragHandleHeight =
+    nodeElement?.querySelector(".drag-handle")?.getBoundingClientRect?.().height || TEXT_NODE_CHROME_HEIGHT;
+
+  field.style.height = "0px";
+  const nextFieldHeight = Math.max(TEXT_NODE_MIN_TEXTAREA_HEIGHT, Math.ceil(field.scrollHeight));
+  field.style.height = `${nextFieldHeight}px`;
+
+  const nextNodeHeight = Math.max(TEXT_NODE_MIN_FRAME_HEIGHT, Math.ceil(dragHandleHeight + nextFieldHeight));
+  if (nodeElement) {
+    nodeElement.style.height = `${nextNodeHeight}px`;
+  }
+
+  if (node) {
+    node.autoHeight = nextNodeHeight;
+  }
+}
+
+function syncRenderedTextNodeHeights(board = getActiveBoard()) {
+  if (!board) return;
+
+  for (const field of canvasStage.querySelectorAll(".canvas-textarea[data-text-node]")) {
+    const node = board.nodes.find((item) => item.id === field.dataset.textNode);
+    syncTextNodeAutoHeight(field, node || null);
+  }
 }
 
 function buildLocalPresenceState(overrides = {}) {
@@ -768,6 +814,39 @@ function buildConnectionPath(edge, fromNode, toNode) {
   return buildConnectionPathFromPoints(start, end);
 }
 
+function resolveTargetSide(fromNode, toNode) {
+  if (!fromNode || !toNode) {
+    return "left";
+  }
+
+  const fromFrame = getNodeFrame(fromNode);
+  const toFrame = getNodeFrame(toNode);
+  const deltaX = toFrame.x + toFrame.width / 2 - (fromFrame.x + fromFrame.width / 2);
+  const deltaY = toFrame.y + toFrame.height / 2 - (fromFrame.y + fromFrame.height / 2);
+
+  if (Math.abs(deltaX) >= Math.abs(deltaY)) {
+    return deltaX >= 0 ? "left" : "right";
+  }
+
+  return deltaY >= 0 ? "top" : "bottom";
+}
+
+function flushPendingEditorFocus() {
+  const pendingFocus = state.editing.pendingFocus;
+  if (!pendingFocus?.nodeId) return;
+
+  const textarea = canvasStage.querySelector(`.canvas-textarea[data-text-node="${pendingFocus.nodeId}"]`);
+  if (!textarea) return;
+
+  textarea.focus({ preventScroll: true });
+
+  if (pendingFocus.selectAll) {
+    textarea.setSelectionRange(0, textarea.value.length);
+  }
+
+  state.editing.pendingFocus = null;
+}
+
 function renderCanvasContext(board) {
   const activeProject = state.canvasContext.mode === "project" ? getProject(state.canvasContext.projectId) : null;
   const toggleLabel = activeProject ? `Show ${activeProject.name}` : "Show Overview";
@@ -811,7 +890,7 @@ function renderCanvasContext(board) {
 }
 
 function renderNodeControls(node, isSelected, isHovered) {
-  const showPorts = isSelected || isHovered;
+  const showPorts = true;
   const showResize = isSelected;
 
   return [
@@ -880,6 +959,71 @@ function renderImageNode(node, className, style, contextMode, isSelected, isHove
   return `
     <div class="${className}" data-id="${node.id}" data-node-type="${node.type}" data-project-context="${contextMode}" style="${style}">
       <img src="${escapeHtml(node.content || "")}" alt="canvas media" draggable="false" />
+      ${renderNodeControls(node, isSelected, isHovered)}
+    </div>
+  `;
+}
+
+function formatFileSize(bytes) {
+  if (typeof bytes !== "number" || !Number.isFinite(bytes) || bytes <= 0) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1).replace(/\.0$/, "")} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1).replace(/\.0$/, "")} MB`;
+}
+
+function fileKindLabel(node) {
+  if (node.fileKind === "pdf") return "PDF";
+  if (node.fileKind === "image") return "Image";
+  return "File";
+}
+
+function renderFileNode(node, className, style, contextMode, isSelected, isHovered) {
+  const fileUrl = escapeHtml(node.file || node.content || "");
+  const title = escapeHtml(node.title || "Attachment");
+  const sizeLabel = formatFileSize(node.size);
+  const caption = [node.mimeType || "", sizeLabel].filter(Boolean).join(" · ");
+  const preview =
+    node.fileKind === "image"
+      ? `
+        <div class="file-node-preview" data-file-preview-kind="image">
+          <img src="${fileUrl}" alt="${title}" draggable="false" />
+        </div>
+      `
+      : node.fileKind === "pdf"
+        ? `
+          <div class="file-node-preview" data-file-preview-kind="pdf">
+            <iframe src="${fileUrl}#view=FitH" title="${title}" loading="lazy"></iframe>
+          </div>
+        `
+        : `
+          <div class="file-node-preview" data-file-preview-kind="other">
+            <div>
+              ${icon("box")}
+              <div>${escapeHtml(node.mimeType || "Preview unavailable")}</div>
+            </div>
+          </div>
+        `;
+
+  return `
+    <div class="${className} file-node" data-id="${node.id}" data-node-type="${node.type}" data-project-context="${contextMode}" style="${style}">
+      <div class="drag-handle"></div>
+      <div class="file-node-shell">
+        <div class="file-node-head">
+          <div class="file-node-labels">
+            <div class="file-node-kicker">Attachment</div>
+            <h3 class="file-node-title">${title}</h3>
+          </div>
+          <span class="file-node-pill">${fileKindLabel(node)}</span>
+        </div>
+        ${preview}
+        <div class="file-node-meta">
+          <div class="file-node-caption">${escapeHtml(caption || "Stored on this board")}</div>
+          <a class="file-node-action" data-node-action href="${fileUrl}" target="_blank" rel="noreferrer">
+            ${icon("arrow")}
+            Open
+          </a>
+        </div>
+      </div>
       ${renderNodeControls(node, isSelected, isHovered)}
     </div>
   `;
@@ -973,7 +1117,7 @@ function renderCanvas() {
       const isHovered = state.ui.hoveredNodeId === node.id;
       const className = [
         "canvas-node",
-        node.type === "image" ? "image-node" : "card",
+        ...(node.type === "image" ? ["image-node"] : ["card"]),
         isSelected ? "is-selected" : "",
         isHovered ? "is-hovered" : "",
       ]
@@ -998,13 +1142,19 @@ function renderCanvas() {
         return renderGroupNode(node, className, style, contextMode, isSelected, isHovered);
       }
 
+      if (node.type === "file") {
+        return renderFileNode(node, className, style, contextMode, isSelected, isHovered);
+      }
+
       return renderImageNode(node, className, style, contextMode, isSelected, isHovered);
     })
     .join("");
 
+  syncRenderedTextNodeHeights(board);
   renderMarqueeSelection();
   renderCollaborationPresence(board);
   renderAssistantContext();
+  flushPendingEditorFocus();
 }
 
 function renderMarqueeSelection() {
@@ -1440,6 +1590,9 @@ function addNode(type) {
   }
 
   persistActiveBoard();
+  if (type === "text") {
+    queueTextNodeFocus(node.id, { selectAll: node.content === "Start typing..." });
+  }
   setSelectedNodes([node.id]);
 }
 
@@ -1728,6 +1881,86 @@ async function handleImportFile(file) {
   renderCanvas();
 }
 
+async function uploadWorkspaceFile(file, boardKey) {
+  const config = await getCollaborationConfig();
+  const endpoint = config?.endpoints?.uploads || "/api/uploads";
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "content-type": file.type || "application/octet-stream",
+      "x-board-key": boardKey,
+      "x-file-name": file.name || "upload.bin",
+    },
+    body: file,
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.error || `Upload failed with status ${response.status}.`);
+  }
+
+  if (!payload?.upload?.url) {
+    throw new Error("Upload response did not include a file URL.");
+  }
+
+  return payload.upload;
+}
+
+function createFileNodeFromUpload(upload, worldPoint, index = 0) {
+  const fileKind = upload.fileKind || "other";
+  const width = fileKind === "pdf" ? 360 : 340;
+  const height = fileKind === "pdf" ? 420 : fileKind === "image" ? 280 : 188;
+
+  return createCanvasNode("file", {
+    x: Math.round(worldPoint.x - width / 2 + index * 26),
+    y: Math.round(worldPoint.y - height / 2 + index * 22),
+    w: width,
+    h: height,
+    file: upload.url,
+    content: upload.url,
+    title: upload.originalName || upload.storedName || "Attachment",
+    mimeType: upload.mimeType || "",
+    fileKind,
+    size: typeof upload.size === "number" ? upload.size : undefined,
+  });
+}
+
+async function insertFileNodes(files, options = {}) {
+  const attachments = Array.from(files || []).filter((file) => file && typeof file.name === "string" && file.name);
+  if (attachments.length === 0) return;
+
+  const board = getActiveBoard();
+  const worldPoint = options.worldPoint || {
+    x: state.pointer.worldX || 180,
+    y: state.pointer.worldY || 180,
+  };
+  const uploads = [];
+
+  state.assistant.error = "";
+  renderAssistantThread();
+
+  for (const file of attachments) {
+    uploads.push(await uploadWorkspaceFile(file, board.key));
+  }
+
+  if (uploads.length === 0) return;
+
+  pushBoardHistory(board);
+  const createdNodes = uploads.map((upload, index) => createFileNodeFromUpload(upload, worldPoint, index));
+  board.nodes.push(...createdNodes);
+  persistActiveBoard();
+  setSelectedNodes(createdNodes.map((node) => node.id));
+}
+
+async function handleCanvasFiles(files, options = {}) {
+  try {
+    await insertFileNodes(files, options);
+  } catch (error) {
+    state.assistant.error = error instanceof Error ? error.message : "Attachment upload failed.";
+    renderAssistantThread();
+  }
+}
+
 function triggerExport() {
   const board = getActiveBoard();
   const payload = exportBoardToJsonCanvas(board);
@@ -1762,6 +1995,10 @@ assistantCloseBtn?.addEventListener("click", () => {
 
 addTextNodeBtn?.addEventListener("click", () => {
   addNode("text");
+});
+
+addFileNodeBtn?.addEventListener("click", () => {
+  canvasFileInput?.click();
 });
 
 addLinkNodeBtn?.addEventListener("click", () => {
@@ -1802,6 +2039,14 @@ canvasImportInput?.addEventListener("change", async (event) => {
   } finally {
     event.target.value = "";
   }
+});
+
+canvasFileInput?.addEventListener("change", async (event) => {
+  const files = [...(event.target.files || [])];
+  if (files.length === 0) return;
+
+  await handleCanvasFiles(files);
+  event.target.value = "";
 });
 
 canvasExportBtn?.addEventListener("click", () => {
@@ -1937,6 +2182,12 @@ canvasViewport.addEventListener("pointermove", (event) => {
     state.interaction.edgeDraft.currentWorldY = world.y;
     state.interaction.edgeDraft.targetNodeId =
       hoveredNode && hoveredNode !== state.interaction.edgeDraft.fromNodeId ? hoveredNode : null;
+    if (state.interaction.edgeDraft.targetNodeId) {
+      const board = getActiveBoard();
+      const fromNode = board.nodes.find((node) => node.id === state.interaction.edgeDraft.fromNodeId);
+      const toNode = board.nodes.find((node) => node.id === state.interaction.edgeDraft.targetNodeId);
+      state.interaction.edgeDraft.toSide = resolveTargetSide(fromNode, toNode);
+    }
   }
 
   state.interaction.lastX = event.clientX;
@@ -1953,6 +2204,7 @@ canvasViewport.addEventListener("pointerdown", (event) => {
   if (event.target.closest("#assistantCompanion")) return;
   if (event.target.closest("#workspaceAssistantPanel")) return;
   if (event.target.closest("[data-open-project]")) return;
+  if (event.target.closest("[data-node-action]")) return;
 
   if (event.pointerType === "touch") {
     setTouchPoint(event.pointerId, event.clientX, event.clientY);
@@ -1981,7 +2233,7 @@ canvasViewport.addEventListener("pointerdown", (event) => {
         currentWorldX: state.pointer.worldX,
         currentWorldY: state.pointer.worldY,
         targetNodeId: null,
-        toSide: fromSide === "left" ? "right" : fromSide === "right" ? "left" : "top",
+        toSide: fromSide === "left" ? "right" : fromSide === "right" ? "left" : fromSide === "top" ? "bottom" : "top",
       },
       beforeSnapshot: createBoardSnapshot(getActiveBoard()),
     });
@@ -2121,12 +2373,14 @@ canvasViewport.addEventListener("pointerup", (event) => {
     const targetNodeId = draft.targetNodeId || getCanvasNodeIdAtPoint(event.clientX, event.clientY);
     const duplicateEdge = board.edges.find((edge) => edge.from === draft.fromNodeId && edge.to === targetNodeId);
     if (targetNodeId && targetNodeId !== draft.fromNodeId && !duplicateEdge) {
+      const fromNode = board.nodes.find((node) => node.id === draft.fromNodeId);
+      const toNode = board.nodes.find((node) => node.id === targetNodeId);
       board.edges.push({
         id: `edge-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         from: draft.fromNodeId,
         to: targetNodeId,
         fromSide: draft.fromSide,
-        toSide: draft.toSide,
+        toSide: resolveTargetSide(fromNode, toNode),
         fromEnd: "none",
         toEnd: "arrow",
         label: "",
@@ -2209,6 +2463,37 @@ canvasViewport.addEventListener("dblclick", (event) => {
   addNode("text");
 });
 
+canvasViewport.addEventListener("dragenter", (event) => {
+  if (!event.dataTransfer?.types?.includes("Files")) return;
+  event.preventDefault();
+  canvasViewport.classList.add("is-file-dragover");
+});
+
+canvasViewport.addEventListener("dragover", (event) => {
+  if (!event.dataTransfer?.types?.includes("Files")) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "copy";
+  canvasViewport.classList.add("is-file-dragover");
+  syncPointer(event.clientX, event.clientY, event.target);
+});
+
+canvasViewport.addEventListener("dragleave", (event) => {
+  if (event.relatedTarget && canvasViewport.contains(event.relatedTarget)) return;
+  canvasViewport.classList.remove("is-file-dragover");
+});
+
+canvasViewport.addEventListener("drop", async (event) => {
+  const files = [...(event.dataTransfer?.files || [])];
+  if (files.length === 0) return;
+
+  event.preventDefault();
+  canvasViewport.classList.remove("is-file-dragover");
+  syncPointer(event.clientX, event.clientY, event.target);
+  await handleCanvasFiles(files, {
+    worldPoint: pointerToWorld(event.clientX, event.clientY),
+  });
+});
+
 canvasStage.addEventListener("click", (event) => {
   const projectButton = event.target.closest("[data-open-project]");
   if (projectButton) {
@@ -2263,6 +2548,7 @@ canvasStage.addEventListener("input", (event) => {
 
   if (event.target.matches("[data-text-node]")) {
     node.content = event.target.value;
+    syncTextNodeAutoHeight(event.target, node);
   }
 
   if (event.target.matches("[data-link-field='title']")) {

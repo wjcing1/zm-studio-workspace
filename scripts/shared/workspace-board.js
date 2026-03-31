@@ -25,15 +25,59 @@ function normalizeNodeId(node, index) {
 function normalizeNodeType(type) {
   const normalized = String(type || "text").toLowerCase();
 
-  if (["text", "project", "image", "link", "group"].includes(normalized)) {
+  if (["text", "project", "image", "link", "group", "file"].includes(normalized)) {
     return normalized;
   }
 
-  if (normalized === "file") {
-    return "image";
+  return "text";
+}
+
+function normalizeMimeType(value) {
+  if (typeof value !== "string") return "";
+  return value.split(";")[0].trim().toLowerCase();
+}
+
+function inferMimeTypeFromFile(file) {
+  const extension = String(file || "")
+    .trim()
+    .split("?")[0]
+    .toLowerCase()
+    .match(/\.[a-z0-9]+$/)?.[0];
+
+  if (extension === ".png") return "image/png";
+  if (extension === ".jpg" || extension === ".jpeg") return "image/jpeg";
+  if (extension === ".gif") return "image/gif";
+  if (extension === ".webp") return "image/webp";
+  if (extension === ".svg") return "image/svg+xml";
+  if (extension === ".pdf") return "application/pdf";
+  return "";
+}
+
+function inferFileKind(mimeType, file = "") {
+  const normalizedMimeType = normalizeMimeType(mimeType);
+  const lowerFile = String(file || "").toLowerCase();
+
+  if (normalizedMimeType === "image" || normalizedMimeType === "pdf" || normalizedMimeType === "other") {
+    return normalizedMimeType;
   }
 
-  return "text";
+  if (normalizedMimeType.startsWith("image/")) return "image";
+  if (normalizedMimeType === "application/pdf" || lowerFile.endsWith(".pdf")) return "pdf";
+  if (/\.(png|jpe?g|gif|webp|svg)$/i.test(lowerFile)) return "image";
+  return "other";
+}
+
+function normalizeFileTitle(title, file) {
+  if (typeof title === "string" && title.trim()) {
+    return title;
+  }
+
+  const candidate = String(file || "")
+    .split("/")
+    .pop()
+    ?.split("?")[0];
+
+  return candidate || "Attachment";
 }
 
 function normalizeWidth(node) {
@@ -52,6 +96,14 @@ function normalizeHeight(node) {
 
 export function resolveNodeHeight(node) {
   if (typeof node?.h === "number") return node.h;
+  if (typeof node?.autoHeight === "number" && Number.isFinite(node.autoHeight)) {
+    return Math.max(170, Math.round(node.autoHeight));
+  }
+  if (node?.type === "file") {
+    if (node?.fileKind === "pdf") return 420;
+    if (node?.fileKind === "image") return 280;
+    return 188;
+  }
   if (node?.type === "image") return 240;
   if (node?.type === "project") return 250;
   if (node?.type === "group") return 280;
@@ -92,6 +144,10 @@ export function sanitizeCanvasNodes(nodes) {
       y: Math.round(asNumber(rawNode?.y, 0)),
       w: normalizeWidth(rawNode),
       h: normalizeHeight(rawNode),
+      autoHeight:
+        typeof rawNode?.autoHeight === "number" && Number.isFinite(rawNode.autoHeight)
+          ? Math.max(170, Math.round(rawNode.autoHeight))
+          : undefined,
       color: typeof rawNode?.color === "string" ? rawNode.color : undefined,
     };
 
@@ -107,6 +163,18 @@ export function sanitizeCanvasNodes(nodes) {
 
     if (type === "image") {
       node.content = String(rawNode?.content ?? rawNode?.file ?? rawNode?.url ?? "");
+    }
+
+    if (type === "file") {
+      node.file = String(rawNode?.file ?? rawNode?.content ?? rawNode?.url ?? "");
+      node.content = node.file;
+      node.title = normalizeFileTitle(rawNode?.title ?? rawNode?.label ?? rawNode?.name ?? "", node.file);
+      node.mimeType = normalizeMimeType(rawNode?.mimeType) || inferMimeTypeFromFile(node.file);
+      node.fileKind = inferFileKind(rawNode?.fileKind ?? node.mimeType, node.file);
+      node.size =
+        typeof rawNode?.size === "number" && Number.isFinite(rawNode.size) && rawNode.size > 0
+          ? Math.round(rawNode.size)
+          : undefined;
     }
 
     if (type === "link") {
@@ -283,6 +351,32 @@ function exportNode(node) {
     };
   }
 
+  if (node.type === "file") {
+    const file = node.file || node.content || "";
+    if (isLikelyLocalFile(file)) {
+      return {
+        ...base,
+        type: "file",
+        file,
+        title: node.title || "",
+        mimeType: normalizeMimeType(node.mimeType) || inferMimeTypeFromFile(file) || undefined,
+        fileKind: inferFileKind(node.fileKind || node.mimeType, file),
+        size: typeof node.size === "number" ? node.size : undefined,
+        zmType: "file",
+      };
+    }
+
+    return {
+      ...base,
+      type: "link",
+      url: file,
+      title: node.title || "",
+      zmType: "file",
+      mimeType: normalizeMimeType(node.mimeType) || undefined,
+      fileKind: inferFileKind(node.fileKind || node.mimeType, file),
+    };
+  }
+
   if (node.type === "project") {
     const projectText = [node.title || "", node.desc || "", ...(node.tags || [])].filter(Boolean).join("\n\n");
     return {
@@ -327,8 +421,16 @@ function importNode(node) {
   if (node?.type === "file") {
     return {
       ...common,
-      type: "image",
+      type: "file",
+      file: String(node?.file ?? ""),
       content: String(node?.file ?? ""),
+      title: normalizeFileTitle(node?.title ?? "", node?.file ?? ""),
+      mimeType: normalizeMimeType(node?.mimeType) || inferMimeTypeFromFile(node?.file ?? ""),
+      fileKind: inferFileKind(node?.fileKind ?? node?.mimeType, node?.file ?? ""),
+      size:
+        typeof node?.size === "number" && Number.isFinite(node.size) && node.size > 0
+          ? Math.round(node.size)
+          : undefined,
     };
   }
 
@@ -337,6 +439,22 @@ function importNode(node) {
       ...common,
       type: "image",
       content: String(node?.url ?? ""),
+    };
+  }
+
+  if (node?.type === "link" && node?.zmType === "file") {
+    return {
+      ...common,
+      type: "file",
+      file: String(node?.url ?? ""),
+      content: String(node?.url ?? ""),
+      title: normalizeFileTitle(node?.title ?? "", node?.url ?? ""),
+      mimeType: normalizeMimeType(node?.mimeType) || inferMimeTypeFromFile(node?.url ?? ""),
+      fileKind: inferFileKind(node?.fileKind ?? node?.mimeType, node?.url ?? ""),
+      size:
+        typeof node?.size === "number" && Number.isFinite(node.size) && node.size > 0
+          ? Math.round(node.size)
+          : undefined,
     };
   }
 
@@ -462,6 +580,19 @@ export function applyBoardOperations(board, operations) {
 export function createCanvasNode(type, patch = {}) {
   const prefix = type === "group" ? "group" : "node";
   const id = patch.id || `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  const file = String(patch.file ?? patch.content ?? "");
+  const fileKind = type === "file" ? inferFileKind(patch.fileKind ?? patch.mimeType, file) : "";
+  const defaultWidth = type === "group" ? 420 : type === "file" ? (fileKind === "pdf" ? 360 : 340) : 280;
+  const defaultHeight =
+    type === "image"
+      ? 240
+      : type === "file"
+        ? fileKind === "pdf"
+          ? 420
+          : fileKind === "image"
+            ? 280
+            : 188
+        : "auto";
 
   return sanitizeCanvasNodes([
     {
@@ -469,9 +600,9 @@ export function createCanvasNode(type, patch = {}) {
       type,
       x: 0,
       y: 0,
-      w: type === "group" ? 420 : 280,
-      h: type === "image" ? 240 : "auto",
-      content: type === "text" ? "Start typing..." : "",
+      w: defaultWidth,
+      h: defaultHeight,
+      content: type === "text" ? "Start typing..." : type === "file" ? file : "",
       ...patch,
     },
   ])[0];

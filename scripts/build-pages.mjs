@@ -17,7 +17,7 @@ const filesToCopy = [
   "studio-data.mjs",
   "manifest.webmanifest",
 ];
-const directoriesToCopy = ["icons", "styles", "scripts"];
+const directoriesToCopy = ["icons", "styles", "scripts", "media"];
 const optionalFiles = ["CNAME"];
 
 async function copyOptional(relativePath) {

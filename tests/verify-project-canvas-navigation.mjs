@@ -27,15 +27,15 @@ try {
 
   const checks = [
     {
-      ok: html.includes("Canvas / Projects / Dark Matter E-commerce"),
+      ok: html.includes("Canvas / Projects / 哈萨克斯坦电梯展"),
       message: "Project route should render the project breadcrumb.",
     },
     {
-      ok: html.includes("Dark Matter E-commerce"),
+      ok: html.includes("哈萨克斯坦电梯展"),
       message: "Project route should render the project title.",
     },
     {
-      ok: html.includes("Milan"),
+      ok: html.includes("哈萨克斯坦"),
       message: "Project route should render project metadata.",
     },
     {

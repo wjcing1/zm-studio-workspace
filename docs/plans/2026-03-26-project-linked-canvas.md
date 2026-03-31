@@ -88,9 +88,9 @@ git commit -m "feat: upgrade project canvas interactions"
 ### Task 3: Preserve existing behavior and verify full app
 
 **Files:**
-- Modify: `task_plan.md`
-- Modify: `progress.md`
-- Modify: `findings.md`
+- Modify: `docs/working/task_plan.md`
+- Modify: `docs/working/progress.md`
+- Modify: `docs/working/findings.md`
 
 **Step 1: Run focused verification**
 
@@ -114,6 +114,6 @@ Update planning/progress notes with the delivered behavior and any remaining gap
 **Step 4: Commit**
 
 ```bash
-git add task_plan.md progress.md findings.md
+git add docs/working/task_plan.md docs/working/progress.md docs/working/findings.md
 git commit -m "docs: record project canvas delivery"
 ```

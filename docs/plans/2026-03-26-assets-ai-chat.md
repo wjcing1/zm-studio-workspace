@@ -149,9 +149,9 @@ Expected: PASS.
 ### Task 5: End-to-End Verification
 
 **Files:**
-- Modify: `/Users/jiachenwang/Desktop/ai工作室/progress.md`
-- Modify: `/Users/jiachenwang/Desktop/ai工作室/findings.md`
-- Modify: `/Users/jiachenwang/Desktop/ai工作室/task_plan.md`
+- Modify: `/Users/jiachenwang/Desktop/ai工作室/docs/working/progress.md`
+- Modify: `/Users/jiachenwang/Desktop/ai工作室/docs/working/findings.md`
+- Modify: `/Users/jiachenwang/Desktop/ai工作室/docs/working/task_plan.md`
 
 **Step 1: Write the failing test**
 

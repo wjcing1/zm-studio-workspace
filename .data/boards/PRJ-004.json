@@ -1,0 +1,59 @@
+{
+  "board": {
+    "key": "PRJ-004",
+    "projectId": "PRJ-004",
+    "title": "舒勇SHOW ROOM Canvas",
+    "description": "围绕 SHOW ROOM 提案、效果图和参考资料整理出的展示空间工作板。",
+    "camera": {
+      "x": 108,
+      "y": 88,
+      "z": 0.9
+    },
+    "nodes": [
+      {
+        "id": "hero",
+        "type": "project",
+        "x": 170,
+        "y": 130,
+        "w": 450,
+        "h": "auto",
+        "title": "舒勇SHOW ROOM",
+        "desc": "以 InDesign 方案、PDF 提案、效果图和 SHUYONG 参考文件夹为主线的展厅提案档案。",
+        "tags": [
+          "提案",
+          "效果图",
+          "Showroom"
+        ]
+      },
+      {
+        "id": "sources",
+        "type": "text",
+        "x": 700,
+        "y": 120,
+        "w": 320,
+        "h": "auto",
+        "content": "Archive Sources\n\n- 方案1.indd\n- 方案1.pdf\n- 效果图\n- SHUYONG"
+      },
+      {
+        "id": "workflow",
+        "type": "text",
+        "x": 690,
+        "y": 460,
+        "w": 330,
+        "h": "auto",
+        "content": "Working Set\n\n- 提案排版稿\n- 提案 PDF 导出稿\n- 效果图文件夹\n- SHOW ROOM 参考资料整理"
+      },
+      {
+        "id": "notes",
+        "type": "text",
+        "x": 170,
+        "y": 500,
+        "w": 360,
+        "h": "auto",
+        "content": "Archive Notes\n\n当前资料能直接确认的是提案链路与效果图输出，地点和预算没有明确标注，因此页面文案保持保守。"
+      }
+    ],
+    "edges": []
+  },
+  "savedAt": "2026-03-31T06:02:58.719Z"
+}

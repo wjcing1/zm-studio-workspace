@@ -17,7 +17,7 @@
         "y": 120,
         "w": 360,
         "h": "auto",
-        "content": "Projects and canvases are now connected.\n\n- click any project card to open its board\n- or jump in from the Projects table\n- double click anywhere to add a note\nPresence test\nPresence test\nPresence test\nPresence test\nPresence test\nPresence test\nPresence test\nPresence test\nPresence test"
+        "content": "Projects and canvases are now connected.\n\n- click any project card to open its board\n- or jump in from the Projects table\n- double click anywhere to add a note\nPresence test\nPresence test\nPresence test\nPresence test\nPresence test\nPresence test\nPresence test\nPresence test\nPresence test\nPresence test\nTest edit\nPresence test"
       },
       {
         "id": "projects-cta",
@@ -100,9 +100,29 @@
           "Launch microsite",
           "3D motion direction"
         ]
+      },
+      {
+        "id": "node-1774901005699-633",
+        "type": "text",
+        "x": 197,
+        "y": 414,
+        "w": 280,
+        "h": "auto",
+        "content": "Start typing..."
       }
     ],
-    "edges": []
+    "edges": [
+      {
+        "id": "edge-1774901005753-746",
+        "from": "node-1774901005699-633",
+        "to": "overview-PRJ-001",
+        "fromSide": "right",
+        "toSide": "left",
+        "fromEnd": "none",
+        "toEnd": "arrow",
+        "label": ""
+      }
+    ]
   },
-  "savedAt": "2026-03-30T19:42:04.050Z"
+  "savedAt": "2026-03-30T20:03:44.975Z"
 }

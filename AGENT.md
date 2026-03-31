@@ -2,7 +2,7 @@
 
 ## 目的
 
-本仓库以后统一用 `my-project-capability-architecture.xlsx` 追踪两件事：
+本仓库以后统一用 `docs/ops/my-project-capability-architecture.xlsx` 追踪两件事：
 
 1. 项目当前已经具备哪些能力。
 2. 每个能力现在处于 `已实现`、`部分实现` 还是 `未实现`。
@@ -11,7 +11,7 @@
 
 ## 台账文件
 
-- 工作簿：`/Users/jiachenwang/Desktop/ai工作室/my-project-capability-architecture.xlsx`
+- 工作簿：`/Users/jiachenwang/Desktop/ai工作室/docs/ops/my-project-capability-architecture.xlsx`
 - 主表：`能力架构`
 - 汇总表：`状态统计`
 
@@ -80,7 +80,7 @@
 
 每次 Agent 开始做功能类任务时，按下面顺序执行：
 
-1. 先读取 `my-project-capability-architecture.xlsx`，找到受影响的能力项。
+1. 先读取 `docs/ops/my-project-capability-architecture.xlsx`，找到受影响的能力项。
 2. 判断这次是“新增能力”还是“完善已有能力”。
 3. 完成代码或规划工作。
 4. 回写 `能力架构`。

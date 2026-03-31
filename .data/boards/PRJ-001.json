@@ -1,0 +1,59 @@
+{
+  "board": {
+    "key": "PRJ-001",
+    "projectId": "PRJ-001",
+    "title": "迪拜2026电梯展 Canvas",
+    "description": "围绕方案汇报、展品清单、模型与效果图整理出的参展档案工作板。",
+    "camera": {
+      "x": 116,
+      "y": 96,
+      "z": 0.88
+    },
+    "nodes": [
+      {
+        "id": "sources",
+        "type": "text",
+        "x": 700,
+        "y": 140,
+        "w": 300,
+        "h": "auto",
+        "content": "Archive Sources\n\n- 方案.indd\n- 西奥-利雅得电梯展-汇报方案(0120).pdf\n- 展品清单.xlsx\n- 人机界面配件清单.xlsx"
+      },
+      {
+        "id": "workflow",
+        "type": "text",
+        "x": 1060,
+        "y": 350,
+        "w": 320,
+        "h": "auto",
+        "content": "Working Set\n\n- 模型文件\n- 效果图\n- 展位图\n- 电梯与轿厢部件参考"
+      },
+      {
+        "id": "notes",
+        "type": "text",
+        "x": 160,
+        "y": 470,
+        "w": 360,
+        "h": "auto",
+        "content": "Archive Notes\n\n文件夹名为“迪拜2026电梯展”，但现有资料同时出现利雅得 / 沙特电梯展相关文件名，因此这块工作板只保留档案中能直接确认的事实。"
+      },
+      {
+        "id": "hero",
+        "type": "project",
+        "x": 172,
+        "y": 142,
+        "w": 430,
+        "h": "auto",
+        "title": "迪拜2026电梯展",
+        "desc": "围绕电梯展提案文件组织出的项目档案，核心材料包括方案汇报、展品清单、模型文件和效果图。",
+        "tags": [
+          "方案汇报",
+          "展品清单",
+          "效果图"
+        ]
+      }
+    ],
+    "edges": []
+  },
+  "savedAt": "2026-03-31T06:02:02.258Z"
+}

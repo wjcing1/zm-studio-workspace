@@ -108,7 +108,7 @@ Expected:
 
 **Files:**
 - Modify: `tests/run-all.mjs`
-- Modify: `progress.md`
+- Modify: `docs/working/progress.md`
 
 **Step 1: Run targeted checks**
 

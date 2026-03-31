@@ -17,16 +17,8 @@
         "y": 120,
         "w": 360,
         "h": "auto",
-        "content": "Projects and canvases are now connected.\n\n- click any project card to open its board\n- or jump in from the Projects table\n- double click anywhere to add a note\nPresence test\nPresence test\nPresence test\nPresence test\nPresence test\nPresence test\nPresence test\nPresence test\nPresence test\nPresence test\nTest edit\nPresence test"
-      },
-      {
-        "id": "projects-cta",
-        "type": "text",
-        "x": 160,
-        "y": 470,
-        "w": 330,
-        "h": "auto",
-        "content": "How to Use This Board\n\nCanvas keeps the spatial overview.\nProjects acts as the ledger.\nAssets stores reusable materials.\n\nEach project has its own canvas now."
+        "content": "Projects and canvases are now connected.\n\n- click any project card to open its board\n- or jump in from the Projects table\n- double click anywhere to add a note\nPresence test\nPresence test\nPresence test\nPresence test\nPresence test\nPresence test\nPresence test\nPresence test\nPresence test\nPresence test\nTest edit\nPresence test\nTest edit\nPresence test",
+        "autoHeight": 574
       },
       {
         "id": "media",
@@ -36,22 +28,6 @@
         "w": 330,
         "h": 230,
         "content": "https://images.unsplash.com/photo-1518773553398-650c184e0bb3?q=80&w=1200&auto=format&fit=crop"
-      },
-      {
-        "id": "overview-PRJ-003",
-        "type": "project",
-        "projectId": "PRJ-003",
-        "x": 690,
-        "y": 470,
-        "w": 360,
-        "h": "auto",
-        "title": "Spatial OS Prototype",
-        "desc": "Remote, based in Rome • On Hold\nAn internal exploration into canvas-native portfolio interfaces, experimental navigation, and data-dense storytelling for the web.",
-        "tags": [
-          "Product concept",
-          "Interaction prototype",
-          "WebGL studies"
-        ]
       },
       {
         "id": "overview-PRJ-004",
@@ -102,27 +78,245 @@
         ]
       },
       {
-        "id": "node-1774901005699-633",
+        "id": "overview-PRJ-003",
+        "type": "project",
+        "projectId": "PRJ-003",
+        "x": 528,
+        "y": 804,
+        "w": 360,
+        "h": "auto",
+        "title": "Spatial OS Prototype",
+        "desc": "Remote, based in Rome • On Hold\nAn internal exploration into canvas-native portfolio interfaces, experimental navigation, and data-dense storytelling for the web.",
+        "tags": [
+          "Product concept",
+          "Interaction prototype",
+          "WebGL studies"
+        ]
+      },
+      {
+        "id": "projects-cta",
         "type": "text",
-        "x": 197,
-        "y": 414,
+        "x": -297,
+        "y": 335,
+        "w": 330,
+        "h": "auto",
+        "content": "How to Use This Board\n\nCanvas keeps the spatial overview.\nProjects acts as the ledger.\nAssets stores reusable materials.\n\nEach project has its own canvas now.",
+        "autoHeight": 247
+      },
+      {
+        "id": "node-1774940031231-758",
+        "type": "link",
+        "x": 1181,
+        "y": -517,
+        "w": 320,
+        "h": 170,
+        "content": "https://",
+        "title": "Reference link",
+        "url": "https://"
+      },
+      {
+        "id": "node-1774940579157-971",
+        "type": "text",
+        "x": 568,
+        "y": -12,
         "w": 280,
         "h": "auto",
-        "content": "Start typing..."
+        "content": "Quick note\n\nThis is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping.",
+        "autoHeight": 1090
+      },
+      {
+        "id": "node-1774940593414-341",
+        "type": "text",
+        "x": 646,
+        "y": 536,
+        "w": 280,
+        "h": "auto",
+        "content": "Start typing...",
+        "autoHeight": 170
+      },
+      {
+        "id": "node-1774940678046-740",
+        "type": "text",
+        "x": 646,
+        "y": 536,
+        "w": 280,
+        "h": "auto",
+        "content": "Start typing...",
+        "autoHeight": 170
+      },
+      {
+        "id": "node-1774940792961-787",
+        "type": "text",
+        "x": 739,
+        "y": -12,
+        "w": 280,
+        "h": "auto",
+        "content": "Quick note\n\nThis is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping. This is a long canvas paragraph used to verify automatic node growth without clipping.",
+        "autoHeight": 1090
+      },
+      {
+        "id": "node-1774940807579-514",
+        "type": "text",
+        "x": 646,
+        "y": 536,
+        "w": 280,
+        "h": "auto",
+        "content": "Start typing...",
+        "autoHeight": 170
+      },
+      {
+        "id": "node-1774940898892-220",
+        "type": "text",
+        "x": 921,
+        "y": 183,
+        "w": 280,
+        "h": "auto",
+        "content": "Start typing...",
+        "autoHeight": 170
+      },
+      {
+        "id": "node-1774940898911-107",
+        "type": "text",
+        "x": 921,
+        "y": 500,
+        "w": 280,
+        "h": "auto",
+        "content": "Start typing...",
+        "autoHeight": 170
+      },
+      {
+        "id": "node-1774940966066-510",
+        "type": "text",
+        "x": 909,
+        "y": 330,
+        "w": 280,
+        "h": "auto",
+        "content": "Start typing...",
+        "autoHeight": 170
+      },
+      {
+        "id": "node-1774940966093-847",
+        "type": "text",
+        "x": 909,
+        "y": 598,
+        "w": 280,
+        "h": "auto",
+        "content": "Start typing...",
+        "autoHeight": 170
+      },
+      {
+        "id": "node-1774941092059-61",
+        "type": "text",
+        "x": 887,
+        "y": 63,
+        "w": 280,
+        "h": "auto",
+        "content": "Start typing...",
+        "autoHeight": 170
+      },
+      {
+        "id": "node-1774941092075-98",
+        "type": "text",
+        "x": 887,
+        "y": 368,
+        "w": 280,
+        "h": "auto",
+        "content": "Start typing...",
+        "autoHeight": 170
+      },
+      {
+        "id": "node-1774941153712-933",
+        "type": "text",
+        "x": 887,
+        "y": 63,
+        "w": 280,
+        "h": "auto",
+        "content": "Start typing...",
+        "autoHeight": 170
+      },
+      {
+        "id": "node-1774941153739-993",
+        "type": "text",
+        "x": 887,
+        "y": 368,
+        "w": 280,
+        "h": "auto",
+        "content": "Start typing...",
+        "autoHeight": 170
+      },
+      {
+        "id": "node-1774941176475-835",
+        "type": "text",
+        "x": 887,
+        "y": 63,
+        "w": 280,
+        "h": "auto",
+        "content": "Start typing...",
+        "autoHeight": 170
+      },
+      {
+        "id": "node-1774941176505-839",
+        "type": "text",
+        "x": 887,
+        "y": 368,
+        "w": 280,
+        "h": "auto",
+        "content": "Start typing...",
+        "autoHeight": 170
       }
     ],
     "edges": [
       {
-        "id": "edge-1774901005753-746",
-        "from": "node-1774901005699-633",
-        "to": "overview-PRJ-001",
+        "id": "edge-1774939948965-445",
+        "from": "projects-cta",
+        "to": "intro",
         "fromSide": "right",
         "toSide": "left",
+        "fromEnd": "none",
+        "toEnd": "arrow",
+        "label": ""
+      },
+      {
+        "id": "edge-1774940593451-663",
+        "from": "node-1774940593414-341",
+        "to": "node-1774940579157-971",
+        "fromSide": "top",
+        "toSide": "bottom",
+        "fromEnd": "none",
+        "toEnd": "arrow",
+        "label": ""
+      },
+      {
+        "id": "edge-1774940678084-114",
+        "from": "node-1774940678046-740",
+        "to": "node-1774940579157-971",
+        "fromSide": "top",
+        "toSide": "bottom",
+        "fromEnd": "none",
+        "toEnd": "arrow",
+        "label": ""
+      },
+      {
+        "id": "edge-1774940807616-754",
+        "from": "node-1774940807579-514",
+        "to": "node-1774940792961-787",
+        "fromSide": "top",
+        "toSide": "left",
+        "fromEnd": "none",
+        "toEnd": "arrow",
+        "label": ""
+      },
+      {
+        "id": "edge-1774941176543-981",
+        "from": "node-1774941176505-839",
+        "to": "node-1774941176475-835",
+        "fromSide": "top",
+        "toSide": "bottom",
         "fromEnd": "none",
         "toEnd": "arrow",
         "label": ""
       }
     ]
   },
-  "savedAt": "2026-03-30T20:03:44.975Z"
+  "savedAt": "2026-03-31T07:13:11.605Z"
 }

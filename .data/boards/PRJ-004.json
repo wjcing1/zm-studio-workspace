@@ -32,7 +32,8 @@
         "y": 120,
         "w": 320,
         "h": "auto",
-        "content": "Archive Sources\n\n- 方案1.indd\n- 方案1.pdf\n- 效果图\n- SHUYONG"
+        "content": "Archive Sources\n\n- 方案1.indd\n- 方案1.pdf\n- 效果图\n- SHUYONG",
+        "autoHeight": 221
       },
       {
         "id": "workflow",
@@ -41,7 +42,8 @@
         "y": 460,
         "w": 330,
         "h": "auto",
-        "content": "Working Set\n\n- 提案排版稿\n- 提案 PDF 导出稿\n- 效果图文件夹\n- SHOW ROOM 参考资料整理"
+        "content": "Working Set\n\n- 提案排版稿\n- 提案 PDF 导出稿\n- 效果图文件夹\n- SHOW ROOM 参考资料整理",
+        "autoHeight": 221
       },
       {
         "id": "notes",
@@ -50,10 +52,11 @@
         "y": 500,
         "w": 360,
         "h": "auto",
-        "content": "Archive Notes\n\n当前资料能直接确认的是提案链路与效果图输出，地点和预算没有明确标注，因此页面文案保持保守。"
+        "content": "Archive Notes\n\n当前资料能直接确认的是提案链路与效果图输出，地点和预算没有明确标注，因此页面文案保持保守。",
+        "autoHeight": 194
       }
     ],
     "edges": []
   },
-  "savedAt": "2026-03-31T06:02:58.719Z"
+  "savedAt": "2026-03-31T07:50:43.083Z"
 }

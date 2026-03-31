@@ -11,14 +11,17 @@
             "id": "70c8b03ddbb479eb",
             "type": "leaf",
             "state": {
-              "type": "markdown",
+              "type": "canvas",
               "state": {
-                "file": "AGENT.md",
-                "mode": "source",
-                "source": false
+                "file": "boards/未命名.canvas",
+                "viewState": {
+                  "x": 45.93473429183777,
+                  "y": -74.46501951014505,
+                  "zoom": -0.09584584170426902
+                }
               },
-              "icon": "lucide-file",
-              "title": "AGENT"
+              "icon": "lucide-layout-dashboard",
+              "title": "未命名"
             }
           }
         ]
@@ -183,8 +186,14 @@
       "bases:新建数据库": false
     }
   },
-  "active": "70c8b03ddbb479eb",
+  "active": "c1ee9fdb34b1f6f7",
   "lastOpenFiles": [
+    "tests/verify-workspace-file-node-ui.mjs",
+    "tests/verify-workspace-file-upload-api.mjs",
+    "docs/plans/2026-03-31-workspace-canvas-file-nodes.md",
+    "docs/plans/2026-03-31-workspace-canvas-file-nodes-design.md",
+    "docs/plans/2026-03-31-workspace-canvas-obsidian-alignment-design.md",
+    "AGENT.md",
     "dist/media/assets/showroom-render.png",
     "dist/media/assets/kz-config-full.png",
     "dist/media/assets/kz-config-compact.png",
@@ -199,7 +208,6 @@
     "media/assets/kz-config-full.png",
     "media/assets/kz-config-compact.png",
     "media/assets/herb-render.png",
-    "media/assets/dubai-elevator-reference.jpg",
     "media/assets",
     "media",
     "boards/未命名.canvas",
@@ -209,7 +217,6 @@
     "docs/working/task_plan.md",
     "docs/working/progress.md",
     "docs/working/findings.md",
-    "docs/working",
     "docs/plans/2026-03-30-unified-splash-login.md",
     "docs/plans/2026-03-30-unified-splash-login-design.md",
     "未命名.canvas"

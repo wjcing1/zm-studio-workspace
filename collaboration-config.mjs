@@ -24,6 +24,7 @@ export function getCollaborationConfig(env = process.env, rootDir = process.cwd(
     endpoints: {
       config: "/api/collaboration/config",
       boards: "/api/boards/:boardId",
+      uploads: "/api/uploads",
       realtime: "/api/collaboration/ws",
     },
   };

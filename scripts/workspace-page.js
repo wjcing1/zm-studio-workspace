@@ -100,6 +100,7 @@ const state = {
   editing: {
     snapshot: null,
     dirty: false,
+    pendingFocus: null,
   },
   touch: {
     points: {},
@@ -163,6 +164,9 @@ const undoCanvasBtn = document.getElementById("undoCanvasBtn");
 const redoCanvasBtn = document.getElementById("redoCanvasBtn");
 const canvasImportBtn = document.getElementById("canvasImportBtn");
 const canvasExportBtn = document.getElementById("canvasExportBtn");
+const TEXT_NODE_MIN_TEXTAREA_HEIGHT = 148;
+const TEXT_NODE_MIN_FRAME_HEIGHT = 170;
+const TEXT_NODE_CHROME_HEIGHT = 22;
 
 function createLocalCollaborator() {
   const palette = ["#6ee7b7", "#60a5fa", "#f97316", "#facc15", "#f472b6", "#22d3ee"];
@@ -263,6 +267,46 @@ function currentEditingPresence() {
   }
 
   return null;
+}
+
+function queueTextNodeFocus(nodeId, options = {}) {
+  if (!nodeId) return;
+
+  state.editing.pendingFocus = {
+    nodeId,
+    selectAll: options.selectAll !== false,
+  };
+}
+
+function syncTextNodeAutoHeight(field, node = null) {
+  if (!field?.matches?.("[data-text-node]")) return;
+  if (node && node.h !== "auto") return;
+
+  const nodeElement = field.closest(".canvas-node");
+  const dragHandleHeight =
+    nodeElement?.querySelector(".drag-handle")?.getBoundingClientRect?.().height || TEXT_NODE_CHROME_HEIGHT;
+
+  field.style.height = "0px";
+  const nextFieldHeight = Math.max(TEXT_NODE_MIN_TEXTAREA_HEIGHT, Math.ceil(field.scrollHeight));
+  field.style.height = `${nextFieldHeight}px`;
+
+  const nextNodeHeight = Math.max(TEXT_NODE_MIN_FRAME_HEIGHT, Math.ceil(dragHandleHeight + nextFieldHeight));
+  if (nodeElement) {
+    nodeElement.style.height = `${nextNodeHeight}px`;
+  }
+
+  if (node) {
+    node.autoHeight = nextNodeHeight;
+  }
+}
+
+function syncRenderedTextNodeHeights(board = getActiveBoard()) {
+  if (!board) return;
+
+  for (const field of canvasStage.querySelectorAll(".canvas-textarea[data-text-node]")) {
+    const node = board.nodes.find((item) => item.id === field.dataset.textNode);
+    syncTextNodeAutoHeight(field, node || null);
+  }
 }
 
 function buildLocalPresenceState(overrides = {}) {
@@ -768,6 +812,39 @@ function buildConnectionPath(edge, fromNode, toNode) {
   return buildConnectionPathFromPoints(start, end);
 }
 
+function resolveTargetSide(fromNode, toNode) {
+  if (!fromNode || !toNode) {
+    return "left";
+  }
+
+  const fromFrame = getNodeFrame(fromNode);
+  const toFrame = getNodeFrame(toNode);
+  const deltaX = toFrame.x + toFrame.width / 2 - (fromFrame.x + fromFrame.width / 2);
+  const deltaY = toFrame.y + toFrame.height / 2 - (fromFrame.y + fromFrame.height / 2);
+
+  if (Math.abs(deltaX) >= Math.abs(deltaY)) {
+    return deltaX >= 0 ? "left" : "right";
+  }
+
+  return deltaY >= 0 ? "top" : "bottom";
+}
+
+function flushPendingEditorFocus() {
+  const pendingFocus = state.editing.pendingFocus;
+  if (!pendingFocus?.nodeId) return;
+
+  const textarea = canvasStage.querySelector(`.canvas-textarea[data-text-node="${pendingFocus.nodeId}"]`);
+  if (!textarea) return;
+
+  textarea.focus({ preventScroll: true });
+
+  if (pendingFocus.selectAll) {
+    textarea.setSelectionRange(0, textarea.value.length);
+  }
+
+  state.editing.pendingFocus = null;
+}
+
 function renderCanvasContext(board) {
   const activeProject = state.canvasContext.mode === "project" ? getProject(state.canvasContext.projectId) : null;
   const toggleLabel = activeProject ? `Show ${activeProject.name}` : "Show Overview";
@@ -811,7 +888,7 @@ function renderCanvasContext(board) {
 }
 
 function renderNodeControls(node, isSelected, isHovered) {
-  const showPorts = isSelected || isHovered;
+  const showPorts = true;
   const showResize = isSelected;
 
   return [
@@ -1002,9 +1079,11 @@ function renderCanvas() {
     })
     .join("");
 
+  syncRenderedTextNodeHeights(board);
   renderMarqueeSelection();
   renderCollaborationPresence(board);
   renderAssistantContext();
+  flushPendingEditorFocus();
 }
 
 function renderMarqueeSelection() {
@@ -1440,6 +1519,9 @@ function addNode(type) {
   }
 
   persistActiveBoard();
+  if (type === "text") {
+    queueTextNodeFocus(node.id, { selectAll: node.content === "Start typing..." });
+  }
   setSelectedNodes([node.id]);
 }
 
@@ -1937,6 +2019,12 @@ canvasViewport.addEventListener("pointermove", (event) => {
     state.interaction.edgeDraft.currentWorldY = world.y;
     state.interaction.edgeDraft.targetNodeId =
       hoveredNode && hoveredNode !== state.interaction.edgeDraft.fromNodeId ? hoveredNode : null;
+    if (state.interaction.edgeDraft.targetNodeId) {
+      const board = getActiveBoard();
+      const fromNode = board.nodes.find((node) => node.id === state.interaction.edgeDraft.fromNodeId);
+      const toNode = board.nodes.find((node) => node.id === state.interaction.edgeDraft.targetNodeId);
+      state.interaction.edgeDraft.toSide = resolveTargetSide(fromNode, toNode);
+    }
   }
 
   state.interaction.lastX = event.clientX;
@@ -1981,7 +2069,7 @@ canvasViewport.addEventListener("pointerdown", (event) => {
         currentWorldX: state.pointer.worldX,
         currentWorldY: state.pointer.worldY,
         targetNodeId: null,
-        toSide: fromSide === "left" ? "right" : fromSide === "right" ? "left" : "top",
+        toSide: fromSide === "left" ? "right" : fromSide === "right" ? "left" : fromSide === "top" ? "bottom" : "top",
       },
       beforeSnapshot: createBoardSnapshot(getActiveBoard()),
     });
@@ -2121,12 +2209,14 @@ canvasViewport.addEventListener("pointerup", (event) => {
     const targetNodeId = draft.targetNodeId || getCanvasNodeIdAtPoint(event.clientX, event.clientY);
     const duplicateEdge = board.edges.find((edge) => edge.from === draft.fromNodeId && edge.to === targetNodeId);
     if (targetNodeId && targetNodeId !== draft.fromNodeId && !duplicateEdge) {
+      const fromNode = board.nodes.find((node) => node.id === draft.fromNodeId);
+      const toNode = board.nodes.find((node) => node.id === targetNodeId);
       board.edges.push({
         id: `edge-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         from: draft.fromNodeId,
         to: targetNodeId,
         fromSide: draft.fromSide,
-        toSide: draft.toSide,
+        toSide: resolveTargetSide(fromNode, toNode),
         fromEnd: "none",
         toEnd: "arrow",
         label: "",
@@ -2263,6 +2353,7 @@ canvasStage.addEventListener("input", (event) => {
 
   if (event.target.matches("[data-text-node]")) {
     node.content = event.target.value;
+    syncTextNodeAutoHeight(event.target, node);
   }
 
   if (event.target.matches("[data-link-field='title']")) {

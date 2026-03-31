@@ -1,0 +1,90 @@
+{
+  "board": {
+    "key": "PRJ-002",
+    "projectId": "PRJ-002",
+    "title": "哈萨克斯坦电梯展 Canvas",
+    "description": "以 Lift Expo KZ 档案为核心的展位准备工作板。",
+    "camera": {
+      "x": 124,
+      "y": 92,
+      "z": 0.92
+    },
+    "nodes": [
+      {
+        "id": "sources",
+        "type": "text",
+        "x": 689,
+        "y": 162,
+        "w": 320,
+        "h": "auto",
+        "content": "Archive Sources\n\n- LiftExpoKZ-FLPLAN 2025.10.17.pdf\n- 2026年哈萨克斯坦展商手册.pdf\n- 沙特&哈萨克斯坦展清单.xlsx"
+      },
+      {
+        "id": "notes",
+        "type": "text",
+        "x": 129,
+        "y": 501,
+        "w": 360,
+        "h": "auto",
+        "content": "Archive Notes\n\n当前档案同时收纳了哈萨克斯坦与中东参展相关模型，因此这块板子强调的是展位准备流程，而不是单一成品页面。"
+      },
+      {
+        "id": "hero",
+        "type": "project",
+        "x": 98,
+        "y": -76,
+        "w": 440,
+        "h": "auto",
+        "title": "哈萨克斯坦电梯展",
+        "desc": "围绕 Lift Expo KZ 的展位档案整理，聚焦展位平面、展商手册、模型与产品配置清单。",
+        "tags": [
+          "展位平面",
+          "展商手册",
+          "模型"
+        ]
+      },
+      {
+        "id": "workflow",
+        "type": "text",
+        "x": 723,
+        "y": 491,
+        "w": 310,
+        "h": "auto",
+        "content": "Working Set\n\n- 模型1.skp\n- 沙特展第二版.skp\n- 人机产品配置清单\n- 中东参展轿厢设计(1).skp"
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge-1774937670889-59",
+        "from": "hero",
+        "to": "notes",
+        "fromSide": "bottom",
+        "toSide": "top",
+        "fromEnd": "none",
+        "toEnd": "arrow",
+        "label": ""
+      },
+      {
+        "id": "edge-sources-hero",
+        "from": "sources",
+        "to": "hero",
+        "fromSide": "right",
+        "toSide": "left",
+        "fromEnd": "none",
+        "toEnd": "arrow",
+        "label": "依据档案"
+      },
+      {
+        "id": "edge-hero-workflow",
+        "from": "hero",
+        "to": "workflow",
+        "fromSide": "right",
+        "toSide": "left",
+        "fromEnd": "none",
+        "toEnd": "arrow",
+        "label": "生成工作集"
+      }
+    ]
+  },
+  "savedAt": "2026-03-31T07:42:57.444Z"
+}

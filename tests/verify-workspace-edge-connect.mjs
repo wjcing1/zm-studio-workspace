@@ -76,6 +76,19 @@ async function main() {
 
         session = buildSessionId();
         runPw(["open", PAGE_URL]);
+        runPw([
+          "eval",
+          `() => {
+            window.localStorage.removeItem("zm-studio-canvas:overview");
+            return true;
+          }`,
+        ]);
+        try {
+          runPw(["close"]);
+        } catch {}
+
+        session = buildSessionId();
+        runPw(["open", PAGE_URL]);
 
         const result = extractJsonResult(
           runPw([
@@ -84,12 +97,21 @@ async function main() {
               const viewport = document.getElementById("canvasViewport");
               const stage = document.getElementById("canvasStage");
               const connections = document.getElementById("canvasConnections");
-              const initialProjectNode = stage.querySelector('.canvas-node[data-id="overview-PRJ-001"]');
-              const projectRect = initialProjectNode.getBoundingClientRect();
-              const spawnPoint = {
-                x: Math.max(projectRect.left - 220, viewport.getBoundingClientRect().left + 40),
-                y: Math.min(projectRect.bottom + 120, viewport.getBoundingClientRect().bottom - 60),
+              const addTextNodeBtn = document.getElementById("addTextNodeBtn");
+              const existingIds = new Set([...stage.querySelectorAll(".canvas-node")].map((node) => node.dataset.id));
+              const viewportRect = viewport.getBoundingClientRect();
+              const targetPoint = {
+                x: viewportRect.left + viewportRect.width * 0.72,
+                y: viewportRect.top + viewportRect.height * 0.28,
               };
+              const sourcePoint = {
+                x: targetPoint.x,
+                y: Math.min(targetPoint.y + 250, viewportRect.bottom - 90),
+              };
+
+              if (!addTextNodeBtn) {
+                return { ok: false, reason: "missing-add-text-button" };
+              }
 
               function firePointer(target, type, x, y, pointerId, buttons) {
                 target.dispatchEvent(
@@ -106,33 +128,36 @@ async function main() {
                 );
               }
 
-              function fireDoubleClick(x, y) {
-                viewport.dispatchEvent(
-                  new MouseEvent("dblclick", {
-                    bubbles: true,
-                    cancelable: true,
-                    clientX: x,
-                    clientY: y,
-                  }),
-                );
+              const beforeEdges = connections.querySelectorAll("path[data-edge-id]").length;
+              firePointer(viewport, "pointermove", targetPoint.x, targetPoint.y, 1, 0);
+              addTextNodeBtn.click();
+              await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+              const firstCreatedNodeId =
+                [...stage.querySelectorAll(".canvas-node")].find((node) => !existingIds.has(node.dataset.id))?.dataset?.id || null;
+
+              firePointer(viewport, "pointermove", sourcePoint.x, sourcePoint.y, 1, 0);
+              addTextNodeBtn.click();
+              await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+              const createdNodes = [...stage.querySelectorAll(".canvas-node")].filter((node) => !existingIds.has(node.dataset.id));
+              const targetNode = firstCreatedNodeId
+                ? stage.querySelector(\`.canvas-node[data-id="\${firstCreatedNodeId}"]\`)
+                : null;
+              const sourceNode = createdNodes.find((node) => node.dataset.id !== firstCreatedNodeId) || null;
+              const hoverPortCount = targetNode?.querySelectorAll("[data-port-node]").length || 0;
+              if (!targetNode || !sourceNode) {
+                return { ok: false, reason: "failed-to-create-two-test-nodes" };
               }
 
-              const beforeEdges = connections.querySelectorAll("path[data-edge-id]").length;
-              fireDoubleClick(spawnPoint.x, spawnPoint.y);
-              await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-
-              const sourceNode = [...stage.querySelectorAll(".canvas-node")].at(-1);
-              const sourceRect = sourceNode.getBoundingClientRect();
-
-              firePointer(sourceNode, "pointerdown", sourceRect.left + sourceRect.width / 2, sourceRect.top + 18, 1, 1);
-              firePointer(viewport, "pointerup", sourceRect.left + sourceRect.width / 2, sourceRect.top + 18, 1, 0);
-              await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-
-              const freshSourceNode = [...stage.querySelectorAll(".canvas-node")].at(-1);
-              const sourcePort = freshSourceNode.querySelector('[data-port-node][data-side="right"]');
+              const sourcePort = sourceNode.querySelector('[data-port-node][data-side="top"]');
               const sourcePortRect = sourcePort.getBoundingClientRect();
-              const targetNode = stage.querySelector('.canvas-node[data-id="overview-PRJ-001"]');
               const targetRect = targetNode.getBoundingClientRect();
+              const sourceId = sourceNode.dataset.id;
+              const targetId = targetNode.dataset.id;
+              const dropPoint = {
+                x: targetRect.left + targetRect.width / 2,
+                y: targetRect.bottom - 6,
+              };
 
               firePointer(
                 sourcePort,
@@ -142,24 +167,44 @@ async function main() {
                 2,
                 1,
               );
-              firePointer(viewport, "pointermove", targetRect.left + targetRect.width / 2, targetRect.top + targetRect.height / 2, 2, 1);
-              firePointer(viewport, "pointerup", targetRect.left + targetRect.width / 2, targetRect.top + targetRect.height / 2, 2, 0);
+              firePointer(viewport, "pointermove", dropPoint.x, dropPoint.y, 2, 1);
+              firePointer(viewport, "pointerup", dropPoint.x, dropPoint.y, 2, 0);
 
               await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+              const storedBoard = JSON.parse(window.localStorage.getItem("zm-studio-canvas:overview") || "null");
+              const createdEdge =
+                storedBoard?.edges?.find((edge) => edge.from === sourceId && edge.to === targetId) || null;
 
               return {
+                ok: true,
+                hoverPortCount,
                 beforeEdges,
                 afterEdges: connections.querySelectorAll("path[data-edge-id]").length,
+                createdEdgeToSide: createdEdge?.toSide || null,
               };
             }`,
           ]),
         );
 
+        if (!result.ok) {
+          throw new Error(`Edge connection probe failed: ${result.reason || "unknown reason"}`);
+        }
+
+        if (result.hoverPortCount < 4) {
+          throw new Error(`Newly created nodes should expose four connection handles. Visible handles: ${result.hoverPortCount}`);
+        }
+
         if (result.afterEdges !== result.beforeEdges + 1) {
           throw new Error(`Connecting two nodes should add one edge. Before: ${result.beforeEdges} After: ${result.afterEdges}`);
         }
 
-        console.log("PASS: dragging from one node port to another creates an edge.");
+        if (result.createdEdgeToSide !== "bottom") {
+          throw new Error(
+            `Connecting from a node below the target should land on the target's bottom side. Actual side: ${result.createdEdgeToSide || "<none>"}`,
+          );
+        }
+
+        console.log("PASS: hover reveals handles and edge creation picks a natural landing side.");
         return;
       } catch (error) {
         if (!isRetryablePlaywrightError(error) || attempt === 2) {

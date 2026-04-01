@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
@@ -6,6 +7,7 @@ import process from "node:process";
 const PORT = 4324;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 const STORE_DIR = path.join(process.cwd(), ".tmp", `board-store-${PORT}`);
+const DB_PATH = path.join(process.cwd(), ".tmp", `board-store-${PORT}.sqlite`);
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -25,6 +27,7 @@ async function waitForServer(url, attempts = 30) {
 
 async function main() {
   await rm(STORE_DIR, { recursive: true, force: true });
+  await rm(DB_PATH, { force: true });
 
   const server = spawn("node", ["server.mjs"], {
     cwd: process.cwd(),
@@ -35,6 +38,7 @@ async function main() {
       COLLAB_MODE: "server",
       COLLAB_PROVIDER: "local-file",
       BOARD_STORE_DIR: STORE_DIR,
+      STUDIO_DB_PATH: DB_PATH,
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -55,6 +59,10 @@ async function main() {
     const seededPayload = await seededResponse.json();
     if (seededPayload.board?.key !== "overview") {
       throw new Error("Seeded overview board did not include the expected board key.");
+    }
+
+    if (seededPayload.persistence?.provider !== "sqlite") {
+      throw new Error("Seeded overview board should report sqlite persistence.");
     }
 
     if (!Array.isArray(seededPayload.board?.nodes) || seededPayload.board.nodes.length === 0) {
@@ -107,6 +115,15 @@ async function main() {
       throw new Error("Reloaded board did not return the server-saved snapshot.");
     }
 
+    if (!existsSync(DB_PATH)) {
+      throw new Error("Board snapshot API should initialize the configured sqlite database file.");
+    }
+
+    const legacyJsonPath = path.join(STORE_DIR, "overview.json");
+    if (existsSync(legacyJsonPath)) {
+      throw new Error("Board snapshot API should no longer persist overview snapshots as JSON files.");
+    }
+
     const projectResponse = await fetch(`${BASE_URL}/api/boards/PRJ-001`);
     if (!projectResponse.ok) {
       throw new Error(`/api/boards/PRJ-001 should return 200, got ${projectResponse.status}`);
@@ -125,6 +142,7 @@ async function main() {
       server.kill("SIGKILL");
     }
     await rm(STORE_DIR, { recursive: true, force: true });
+    await rm(DB_PATH, { force: true });
     if (stderr.trim()) {
       process.stderr.write(stderr);
     }

@@ -9,6 +9,7 @@
     "test": "node tests/run-all.mjs"
   },
   "dependencies": {
+    "better-sqlite3": "^12.8.0",
     "openai": "^6.33.0",
     "ws": "^8.20.0",
     "y-protocols": "^1.0.7",

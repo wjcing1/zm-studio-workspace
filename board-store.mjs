@@ -110,7 +110,21 @@ async function readJson(filePath) {
 export function createBoardStore({
   provider = "local-file",
   storageDir = path.join(process.cwd(), ".data", "boards"),
+  repository = null,
 } = {}) {
+  if (repository) {
+    return {
+      provider: repository.provider || provider,
+      storageDir,
+      async getBoard(boardId) {
+        return repository.getBoard(boardId);
+      },
+      async saveBoard(boardId, input) {
+        return repository.saveBoard(boardId, input);
+      },
+    };
+  }
+
   async function ensureDir() {
     await mkdir(storageDir, { recursive: true });
   }

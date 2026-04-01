@@ -17,7 +17,7 @@
     <script src="./scripts/shared/auth.js?v=2026-03-30-auth-3"></script>
     <script src="./scripts/shared/auth-guard.js?v=2026-03-30-auth-3"></script>
     <link rel="stylesheet" href="./styles/shared.css?v=2026-03-30-auth-1" />
-    <link rel="stylesheet" href="./styles/projects.css" />
+    <link rel="stylesheet" href="./styles/projects.css?v=2026-04-01-project-ai-5" />
   </head>
   <body data-page="zm-projects">
     <div class="app-shell">
@@ -96,9 +96,71 @@
             <div id="projectRows"></div>
           </div>
         </div>
+
+        <button
+          class="projects-assistant-companion"
+          id="projectsAssistantCompanion"
+          type="button"
+          aria-label="Open project AI panel"
+          aria-haspopup="dialog"
+          aria-controls="projectsAssistantPanel"
+        >
+          <span class="projects-assistant-companion-core" aria-hidden="true"></span>
+        </button>
+
+        <aside class="projects-assistant-panel panel-surface" id="projectsAssistantPanel" hidden aria-label="Project AI manager">
+          <div class="projects-assistant-sheet">
+            <div class="projects-assistant-head">
+              <div>
+                <div class="assistant-kicker">AI Project Manager</div>
+                <h2 class="projects-assistant-title">Work The Project Library</h2>
+              </div>
+              <button class="projects-assistant-close" id="projectsAssistantCloseBtn" type="button">Close</button>
+            </div>
+
+            <div class="projects-assistant-body" id="projectsAssistantBody">
+              <section
+                class="projects-assistant-starters-region"
+                id="projectsAssistantStartersRegion"
+                data-state="visible"
+                aria-label="Project assistant starter prompts"
+              >
+                <p class="projects-assistant-copy">
+                  Ask for project summaries, case-study picks, or filtering suggestions across the current project ledger.
+                </p>
+                <div class="assistant-starters" id="projectsAssistantStarters"></div>
+              </section>
+
+              <div
+                class="projects-assistant-timeline"
+                id="projectsAssistantTimeline"
+                role="log"
+                aria-live="polite"
+                aria-relevant="additions text"
+              >
+                <div class="assistant-thread" id="projectsAssistantMessages"></div>
+              </div>
+            </div>
+
+            <div class="projects-assistant-footer" id="projectsAssistantFooter">
+              <form class="assistant-composer" id="projectsAssistantComposer">
+                <textarea
+                  class="assistant-input"
+                  id="projectsAssistantInput"
+                  placeholder="Ask about the project library, priorities, filters, or recommended next actions..."
+                  spellcheck="false"
+                ></textarea>
+                <button class="assistant-send" id="projectsAssistantSend" type="submit">Send</button>
+              </form>
+              <div class="assistant-status" id="projectsAssistantStatus">
+                Project AI requires a server backend. GitHub Pages serves the static project ledger only.
+              </div>
+            </div>
+          </div>
+        </aside>
       </main>
     </div>
 
-    <script type="module" src="./scripts/projects-page.js?v=2026-03-30-auth-1"></script>
+    <script type="module" src="./scripts/projects-page.js?v=2026-04-01-project-ai-5"></script>
   </body>
 </html>

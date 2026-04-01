@@ -2591,8 +2591,9 @@ window.addEventListener("popstate", () => {
 window.addEventListener("keydown", (event) => {
   const target = document.activeElement;
   const isTypingTarget = target?.matches?.("textarea, input");
+  const isSpaceShortcut = event.code === "Space" || event.key === " " || event.key === "Spacebar";
 
-  if (event.code === "Space" && !isTypingTarget) {
+  if (isSpaceShortcut && !isTypingTarget) {
     event.preventDefault();
     if (!event.repeat) {
       openAssistantPanel({ focusInput: true });

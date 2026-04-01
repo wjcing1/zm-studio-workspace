@@ -4,10 +4,11 @@ import process from "node:process";
 
 async function main() {
   const root = process.cwd();
-  const [serviceWorkerSource, assetsSource, workspaceSource] = await Promise.all([
+  const [serviceWorkerSource, assetsSource, workspaceSource, projectsSource] = await Promise.all([
     readFile(path.join(root, "sw.js"), "utf8"),
     readFile(path.join(root, "assets.html"), "utf8"),
     readFile(path.join(root, "workspace.html"), "utf8"),
+    readFile(path.join(root, "projects.html"), "utf8"),
   ]);
 
   const checks = [
@@ -36,6 +37,14 @@ async function main() {
     {
       ok: /src="\.\/scripts\/workspace-page\.js\?v=/.test(workspaceSource),
       message: "workspace.html should request a versioned workspace-page.js URL to bypass stale shell caches.",
+    },
+    {
+      ok: /href="\.\/styles\/projects\.css\?v=/.test(projectsSource),
+      message: "projects.html should request a versioned projects.css URL to bypass stale shell caches.",
+    },
+    {
+      ok: /src="\.\/scripts\/projects-page\.js\?v=/.test(projectsSource),
+      message: "projects.html should request a versioned projects-page.js URL to bypass stale shell caches.",
     },
   ];
 

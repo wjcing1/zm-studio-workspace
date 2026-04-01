@@ -4,12 +4,13 @@ import process from "node:process";
 
 async function main() {
   const root = process.cwd();
-  const [manifestSource, serviceWorkerSource, registerSource, assetsSource, workspaceSource] = await Promise.all([
+  const [manifestSource, serviceWorkerSource, registerSource, assetsSource, workspaceSource, dataClientSource] = await Promise.all([
     readFile(path.join(root, "manifest.webmanifest"), "utf8"),
     readFile(path.join(root, "sw.js"), "utf8"),
     readFile(path.join(root, "scripts/shared/register-web-app.js"), "utf8"),
     readFile(path.join(root, "assets.html"), "utf8"),
     readFile(path.join(root, "workspace.html"), "utf8"),
+    readFile(path.join(root, "scripts/shared/studio-data-client.js"), "utf8"),
   ]);
 
   const checks = [
@@ -40,6 +41,18 @@ async function main() {
     {
       ok: workspaceSource.includes("AI requires a server backend"),
       message: "workspace.html should explain that workspace AI needs a backend when deployed statically.",
+    },
+    {
+      ok: dataClientSource.includes('fetch("/api/studio-data"'),
+      message: "studio-data-client should prefer loading runtime data from /api/studio-data.",
+    },
+    {
+      ok: dataClientSource.includes("./data/studio-data.json"),
+      message: "studio-data-client should include a GitHub Pages static studio-data fallback.",
+    },
+    {
+      ok: !dataClientSource.includes('from "../../studio-data.mjs"'),
+      message: "studio-data-client should no longer import studio-data.mjs directly at browser runtime.",
     },
   ];
 

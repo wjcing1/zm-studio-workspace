@@ -1,5 +1,5 @@
-const CACHE_NAME = "zm-studio-shell-v8";
-const APP_VERSION = "2026-03-30-auth-3";
+const CACHE_NAME = "zm-studio-shell-v13";
+const APP_VERSION = "2026-04-01-project-ai-5";
 const APP_BASE_URL = new URL("./", self.location.href);
 const NAVIGATION_FALLBACK = new URL("./workspace.html", APP_BASE_URL).toString();
 const APP_SCOPE_PATH = APP_BASE_URL.pathname.endsWith("/") ? APP_BASE_URL.pathname : `${APP_BASE_URL.pathname}/`;
@@ -16,7 +16,7 @@ const APP_SHELL = [
   `./styles/assets.css?v=${APP_VERSION}`,
   `./styles/workspace.css?v=${APP_VERSION}`,
   `./styles/login.css?v=${APP_VERSION}`,
-  "./styles/projects.css",
+  `./styles/projects.css?v=${APP_VERSION}`,
   "./styles/splash.css",
   `./scripts/shared/auth.js?v=${APP_VERSION}`,
   `./scripts/shared/auth-guard.js?v=${APP_VERSION}`,

@@ -1,6 +1,7 @@
 import { access, cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import { exportStudioSnapshot } from "./export-studio-snapshot.mjs";
 
 const root = process.cwd();
 const distDir = path.join(root, "dist");
@@ -42,10 +43,13 @@ async function main() {
   }
 
   await rm(path.join(distDir, "scripts", "build-pages.mjs"), { force: true });
+  await rm(path.join(distDir, "scripts", "export-studio-snapshot.mjs"), { force: true });
 
   for (const relativePath of optionalFiles) {
     await copyOptional(relativePath);
   }
+
+  await exportStudioSnapshot(path.join(distDir, "data", "studio-data.json"));
 
   const indexSource = await readFile(path.join(root, "index.html"), "utf8");
   await writeFile(path.join(distDir, "404.html"), indexSource);

@@ -25,6 +25,7 @@ async function main() {
     "dist/workspace.html",
     "dist/projects.html",
     "dist/assets.html",
+    "dist/data/studio-data.json",
     "dist/media/assets/dubai-booth-plan.png",
     "dist/开屏动画.html",
     "dist/sw.js",

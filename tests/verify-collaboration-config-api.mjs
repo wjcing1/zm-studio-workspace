@@ -58,8 +58,8 @@ async function main() {
       throw new Error(`Expected collaboration mode to be "server", got ${payload.mode}`);
     }
 
-    if (payload.provider !== "local-file") {
-      throw new Error(`Expected collaboration provider to be "local-file", got ${payload.provider}`);
+    if (payload.provider !== "sqlite") {
+      throw new Error(`Expected collaboration provider to be "sqlite", got ${payload.provider}`);
     }
 
     if (!payload.features || payload.features.persistence !== true) {

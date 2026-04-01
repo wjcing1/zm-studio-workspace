@@ -9,6 +9,8 @@ dist/
 
 .playwright-cli/
 output/
+.data/
+.tmp/
 
 npm-debug.log*
 yarn-debug.log*

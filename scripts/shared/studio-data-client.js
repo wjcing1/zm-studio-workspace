@@ -1,4 +1,3 @@
-import { studioData } from "../../studio-data.mjs";
 import {
   applyBoardSnapshot,
   createBoardSnapshot,
@@ -11,6 +10,64 @@ export const pageLinks = {
   assets: "./assets.html",
 };
 
+const STATIC_STUDIO_DATA_PATH = "./data/studio-data.json";
+
+async function readStudioDataResponse(response) {
+  let payload = null;
+
+  try {
+    payload = await response.json();
+  } catch {}
+
+  if (!response.ok || !payload || !Array.isArray(payload.projects) || !Array.isArray(payload.assets)) {
+    throw new Error(`Unable to load studio data from ${response.url || "runtime source"}.`);
+  }
+
+  return payload;
+}
+
+async function fetchStudioDataSnapshot() {
+  try {
+    const runtimeResponse = await fetch("/api/studio-data", {
+      headers: {
+        accept: "application/json",
+      },
+    });
+    return await readStudioDataResponse(runtimeResponse);
+  } catch {}
+
+  const staticResponse = await fetch(STATIC_STUDIO_DATA_PATH, {
+    headers: {
+      accept: "application/json",
+    },
+  });
+  return readStudioDataResponse(staticResponse);
+}
+
+async function loadStudioDataInternal() {
+  const payload = await fetchStudioDataSnapshot();
+
+  return {
+    meta: payload?.meta || {},
+    studio: payload?.studio || {
+      name: "",
+      base: "",
+      description: "",
+      focus: [],
+    },
+    assistant: payload?.assistant || {
+      greeting: "",
+      starters: [],
+    },
+    canvas: payload?.canvas || {
+      overview: null,
+    },
+    projects: Array.isArray(payload?.projects) ? payload.projects : [],
+    assets: Array.isArray(payload?.assets) ? payload.assets : [],
+  };
+}
+
+export const studioData = await loadStudioDataInternal();
 export const projectDatabase = studioData.projects;
 export const assetsDatabase = studioData.assets;
 export const projectIndex = new Map(projectDatabase.map((project) => [project.id, project]));
@@ -38,6 +95,10 @@ let collaborationConfigPromise = null;
 const hydrationPromises = new Map();
 const pendingBoardSaves = new Map();
 const realtimeBoardSaves = new Map();
+
+export async function loadStudioData() {
+  return studioData;
+}
 
 export function defaultViewportCamera() {
   return {
@@ -416,5 +477,3 @@ export function persistBoard(board) {
     }, REMOTE_SAVE_DELAY_MS),
   });
 }
-
-export { studioData };

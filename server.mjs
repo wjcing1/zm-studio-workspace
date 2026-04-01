@@ -8,7 +8,7 @@ import { createBoardStore } from "./board-store.mjs";
 import { getCollaborationConfig } from "./collaboration-config.mjs";
 import { createMemoryStore } from "./memory-store.mjs";
 import { createRealtimeCollaborationServer } from "./realtime-collaboration-server.mjs";
-import { studioData } from "./studio-data.mjs";
+import { createStudioRepository } from "./studio-repository.mjs";
 import {
   buildMemoryLookupQuery,
   deriveMemoryScopes,
@@ -53,11 +53,20 @@ const PORT = Number(process.env.PORT || 4173);
 const MINIMAX_BASE_URL = process.env.MINIMAX_BASE_URL || "https://api.minimaxi.com/v1";
 const MODEL = process.env.MINIMAX_MODEL || "MiniMax-M2.7";
 const MAX_UPLOAD_BYTES = Number(process.env.UPLOAD_MAX_BYTES || 25 * 1024 * 1024);
+const CHAT_STREAM_TEST_MODE = process.env.CHAT_STREAM_TEST_MODE === "1";
+const CHAT_STREAM_TEST_TEXT =
+  process.env.CHAT_STREAM_TEST_TEXT || "This is a local streaming test response for the projects assistant.";
+const CHAT_STREAM_TEST_DELAY_MS = Number(process.env.CHAT_STREAM_TEST_DELAY_MS || 70);
 const collaborationConfig = getCollaborationConfig(process.env, ROOT_DIR);
 const uploadStorageDir = resolveUploadStorageDir(process.env.UPLOAD_STORE_DIR || path.join(ROOT_DIR, ".data", "uploads"));
+const studioRepository = createStudioRepository({
+  dbPath: process.env.STUDIO_DB_PATH,
+});
+await studioRepository.ensureInitialized();
 const boardStore = createBoardStore({
-  provider: collaborationConfig.provider,
+  provider: studioRepository.provider || collaborationConfig.provider,
   storageDir: collaborationConfig.storageDir,
+  repository: studioRepository,
 });
 const memoryStore = createMemoryStore({
   storageDir: process.env.MEMORY_STORE_DIR || path.join(ROOT_DIR, ".data", "memory"),
@@ -104,6 +113,10 @@ function sendText(response, statusCode, body) {
     "content-type": "text/plain; charset=utf-8",
   });
   response.end(body);
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function safeFilePath(requestPath) {
@@ -213,12 +226,13 @@ function inferUploadKind(mimeType, filename = "") {
   return "other";
 }
 
-function buildDeveloperPrompt() {
+async function buildDeveloperPrompt() {
+  const studioSnapshot = await studioRepository.getStudioSnapshot();
   const portfolioSnapshot = {
-    studio: studioData.studio,
-    assistant: studioData.assistant,
-    projects: studioData.projects.map(({ canvas, ...project }) => project),
-    assets: studioData.assets,
+    studio: studioSnapshot.studio,
+    assistant: studioSnapshot.assistant,
+    projects: studioSnapshot.projects.map(({ canvas, ...project }) => project),
+    assets: studioSnapshot.assets,
   };
 
   return [
@@ -263,6 +277,62 @@ function extractChatText(completion) {
   }
 
   return "";
+}
+
+function extractChatDeltaText(chunk) {
+  const content = chunk?.choices?.[0]?.delta?.content;
+
+  if (typeof content === "string" && content) {
+    return content;
+  }
+
+  if (Array.isArray(content)) {
+    return content
+      .map((item) => {
+        if (item?.type === "text" && typeof item.text === "string") {
+          return item.text;
+        }
+        return "";
+      })
+      .join("");
+  }
+
+  return "";
+}
+
+function openSseStream(response) {
+  response.writeHead(200, {
+    "content-type": "text/event-stream; charset=utf-8",
+    "cache-control": "no-store",
+    connection: "keep-alive",
+  });
+  response.flushHeaders?.();
+}
+
+function writeSseEvent(response, payload) {
+  response.write(`data: ${JSON.stringify(payload)}\n\n`);
+}
+
+async function streamStubChatResponse(response) {
+  const text = CHAT_STREAM_TEST_TEXT;
+  const chunkSize = Math.max(6, Math.ceil(text.length / 5));
+
+  openSseStream(response);
+
+  for (let index = 0; index < text.length; index += chunkSize) {
+    const delta = text.slice(index, index + chunkSize);
+    writeSseEvent(response, {
+      type: "chunk",
+      delta,
+    });
+    await wait(CHAT_STREAM_TEST_DELAY_MS);
+  }
+
+  writeSseEvent(response, {
+    type: "done",
+    model: "stream-test-stub",
+  });
+  response.end();
 }
 
 function extractJsonObject(rawText) {
@@ -450,13 +520,6 @@ function normalizeWorkspaceOperations(input) {
 }
 
 async function handleChat(request, response) {
-  if (!client) {
-    sendJson(response, 503, {
-      error: "MINIMAX_API_KEY is not configured on the server. Add it to your environment and restart the app.",
-    });
-    return;
-  }
-
   let body;
   try {
     body = await parseJsonBody(request);
@@ -466,21 +529,75 @@ async function handleChat(request, response) {
   }
 
   const messages = normalizeMessages(body.messages);
+  const streamRequested = body?.stream === true;
   if (messages.length === 0) {
     sendJson(response, 400, { error: "At least one chat message is required." });
     return;
   }
 
+  if (streamRequested && CHAT_STREAM_TEST_MODE) {
+    await streamStubChatResponse(response);
+    return;
+  }
+
+  if (!client) {
+    sendJson(response, 503, {
+      error: "MINIMAX_API_KEY is not configured on the server. Add it to your environment and restart the app.",
+    });
+    return;
+  }
+
   try {
+    const chatMessages = [
+      {
+        role: "system",
+        content: await buildDeveloperPrompt(),
+      },
+      ...messages,
+    ];
+
+    if (streamRequested) {
+      const completion = await client.chat.completions.create({
+        model: MODEL,
+        stream: true,
+        messages: chatMessages,
+        extra_body: {
+          reasoning_split: true,
+        },
+      });
+
+      let wroteChunk = false;
+
+      for await (const chunk of completion) {
+        const delta = extractChatDeltaText(chunk);
+        if (!delta) continue;
+
+        if (!response.headersSent) {
+          openSseStream(response);
+        }
+
+        writeSseEvent(response, {
+          type: "chunk",
+          delta,
+        });
+        wroteChunk = true;
+      }
+
+      if (!wroteChunk) {
+        throw new Error("MiniMax returned an empty response.");
+      }
+
+      writeSseEvent(response, {
+        type: "done",
+        model: MODEL,
+      });
+      response.end();
+      return;
+    }
+
     const completion = await client.chat.completions.create({
       model: MODEL,
-      messages: [
-        {
-          role: "system",
-          content: buildDeveloperPrompt(),
-        },
-        ...messages,
-      ],
+      messages: chatMessages,
       extra_body: {
         reasoning_split: true,
       },
@@ -496,6 +613,18 @@ async function handleChat(request, response) {
       model: MODEL,
     });
   } catch (error) {
+    if (streamRequested && response.headersSent) {
+      writeSseEvent(response, {
+        type: "error",
+        error:
+          error instanceof Error
+            ? `MiniMax request failed: ${error.message}`
+            : "MiniMax request failed.",
+      });
+      response.end();
+      return;
+    }
+
     sendJson(response, 502, {
       error:
         error instanceof Error
@@ -727,19 +856,15 @@ const server = http.createServer(async (request, response) => {
   }
 
   if (request.method === "GET" && url.pathname === "/api/studio-data") {
-    sendJson(response, 200, {
-      studio: studioData.studio,
-      assistant: studioData.assistant,
-      projects: studioData.projects,
-      assets: studioData.assets,
-    });
+    const studioSnapshot = await studioRepository.getStudioSnapshot();
+    sendJson(response, 200, studioSnapshot);
     return;
   }
 
   if (request.method === "GET" && url.pathname === "/api/collaboration/config") {
     sendJson(response, 200, {
       mode: collaborationConfig.mode,
-      provider: collaborationConfig.provider,
+      provider: boardStore.provider || studioRepository.provider || collaborationConfig.provider,
       features: collaborationConfig.features,
       endpoints: collaborationConfig.endpoints,
     });

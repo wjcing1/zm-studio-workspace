@@ -96,42 +96,73 @@
 
               <div class="asset-grid" id="assetGrid"></div>
             </div>
-
-            <aside class="assistant-panel" id="assistantPanel" aria-label="AI assistant panel">
-              <div class="assistant-shell">
-                <div class="assistant-kicker">
-                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12 3 14.5 9.5 21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"></path>
-                  </svg>
-                  AI Assistant
-                </div>
-                <h2 class="assistant-title">Ask About The Work.</h2>
-                <p class="assistant-copy">
-                  Ask about projects, where they happened, what was delivered, or which case study best represents the studio.
-                </p>
-                <div class="assistant-starters" id="assistantStarters">
-                  <button class="assistant-starter" data-starter-prompt="你都做过什么项目？" type="button">你都做过什么项目？</button>
-                  <button class="assistant-starter" data-starter-prompt="这些项目都在哪儿？" type="button">这些项目都在哪儿？</button>
-                  <button class="assistant-starter" data-starter-prompt="哪个项目最能代表你的工作方式？" type="button">哪个项目最能代表你的工作方式？</button>
-                </div>
-                <div class="assistant-thread" id="assistantMessages"></div>
-                <form class="assistant-composer" id="assistantComposer">
-                  <textarea class="assistant-input" id="assistantInput" placeholder="Ask the AI about projects, locations, deliverables..." spellcheck="false"></textarea>
-                  <button class="assistant-send" id="assistantSend" type="submit">
-                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="m3 11.5 17-8.5-3.5 17-4.5-6-6 2.5Z"></path>
-                    </svg>
-                    Send
-                  </button>
-                </form>
-                <div class="assistant-status" id="assistantStatus">AI requires a server backend. GitHub Pages serves the static portfolio only.</div>
-              </div>
-            </aside>
           </div>
+
+          <button
+            class="assistant-companion"
+            id="assistantCompanion"
+            type="button"
+            aria-label="Open assets AI panel"
+            aria-haspopup="dialog"
+            aria-controls="assistantPanel"
+          >
+            <span class="assistant-companion-core" aria-hidden="true"></span>
+          </button>
+
+          <aside class="assistant-panel panel-surface" id="assistantPanel" hidden aria-label="Assets AI assistant">
+            <div class="assistant-sheet">
+              <div class="assistant-head">
+                <div>
+                  <div class="assistant-kicker">AI Asset Librarian</div>
+                  <h2 class="assistant-title">Find The Right Material</h2>
+                </div>
+                <button class="assistant-close" id="assistantCloseBtn" type="button">Close</button>
+              </div>
+
+              <div class="assistant-body" id="assistantBody">
+                <section
+                  class="assistant-starters-region"
+                  id="assistantStartersRegion"
+                  data-state="visible"
+                  aria-label="Assets assistant starter prompts"
+                >
+                  <p class="assistant-copy">
+                    Ask about related projects, delivery files, source material, or which asset set best represents the studio.
+                  </p>
+                  <div class="assistant-starters" id="assistantStarters"></div>
+                </section>
+
+                <div
+                  class="assistant-timeline"
+                  id="assistantTimeline"
+                  role="log"
+                  aria-live="polite"
+                  aria-relevant="additions text"
+                >
+                  <div class="assistant-thread" id="assistantMessages"></div>
+                </div>
+              </div>
+
+              <div class="assistant-footer" id="assistantFooter">
+                <form class="assistant-composer" id="assistantComposer">
+                  <textarea
+                    class="assistant-input"
+                    id="assistantInput"
+                    placeholder="Ask about source files, linked projects, locations, or deliverables..."
+                    spellcheck="false"
+                  ></textarea>
+                  <button class="assistant-send" id="assistantSend" type="submit">Send</button>
+                </form>
+                <div class="assistant-status" id="assistantStatus">
+                  AI requires a server backend. GitHub Pages serves the static portfolio only.
+                </div>
+              </div>
+            </div>
+          </aside>
         </div>
       </main>
     </div>
 
-    <script type="module" src="./scripts/assets-page.js?v=2026-03-30-auth-1"></script>
+    <script type="module" src="./scripts/assets-page.js?v=2026-04-01-assets-ai-1"></script>
   </body>
 </html>

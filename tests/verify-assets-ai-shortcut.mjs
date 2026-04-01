@@ -3,12 +3,12 @@ import process from "node:process";
 
 const CODEX_HOME = process.env.CODEX_HOME || `${process.env.HOME}/.codex`;
 const PWCLI = `${CODEX_HOME}/skills/playwright/scripts/playwright_cli.sh`;
-const PORT = 4194;
-const PAGE_URL = `http://127.0.0.1:${PORT}/workspace.html?codex-test-auth=1&workspace-shortcut-test=1`;
+const PORT = 4197;
+const PAGE_URL = `http://127.0.0.1:${PORT}/assets.html?codex-test-auth=1`;
 let session = buildSessionId();
 
 function buildSessionId() {
-  return `wwa_${process.pid}_${Date.now().toString(36)}_${Math.floor(Math.random() * 1000)}`;
+  return `aai_${process.pid}_${Date.now().toString(36)}_${Math.floor(Math.random() * 1000)}`;
 }
 
 function runPw(args) {
@@ -21,7 +21,7 @@ function runPw(args) {
 
 function isRetryablePlaywrightError(error) {
   const message = String(error?.stderr || error?.message || error || "");
-  return /Session closed|EADDRINUSE|Daemon process exited/.test(message);
+  return /Session closed|EADDRINUSE|Daemon process exited|Browser '.*' is not open/.test(message);
 }
 
 function extractJsonResult(output) {
@@ -60,7 +60,6 @@ async function main() {
         env: {
           ...process.env,
           PORT: String(PORT),
-          MINIMAX_API_KEY: "",
         },
         stdio: "ignore",
       });
@@ -68,12 +67,13 @@ async function main() {
       await waitForServer(PAGE_URL);
     }
 
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
       try {
         try {
           runPw(["kill-all"]);
         } catch {}
 
+        await wait(150);
         session = buildSessionId();
         runPw(["open", PAGE_URL]);
 
@@ -81,8 +81,26 @@ async function main() {
           runPw([
             "eval",
             `async () => {
-              const panel = document.getElementById("workspaceAssistantPanel");
-              const input = document.getElementById("assistantInput");
+              const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+              let panel = null;
+              let input = null;
+
+              for (let index = 0; index < 30; index += 1) {
+                panel = document.getElementById("assistantPanel");
+                input = document.getElementById("assistantInput");
+                if (panel && input) {
+                  break;
+                }
+                await wait(100);
+              }
+
+              const companion = document.getElementById("assistantCompanion");
+              if (!panel || !input || !companion) {
+                return {
+                  missing: true,
+                  pathname: window.location.pathname,
+                };
+              }
 
               window.dispatchEvent(
                 new KeyboardEvent("keydown", {
@@ -96,7 +114,7 @@ async function main() {
               await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
               return {
-                beforeHidden: true,
+                missing: false,
                 afterHidden: panel.hidden,
                 activeElementId: document.activeElement?.id || "",
                 inputMatchesActive: document.activeElement === input,
@@ -105,22 +123,27 @@ async function main() {
           ]),
         );
 
+        if (result.missing) {
+          throw new Error(`Assets AI controls did not render on ${result.pathname}`);
+        }
+
         if (result.afterHidden) {
-          throw new Error("Pressing Space should open the workspace AI panel.");
+          throw new Error("Pressing Space should open the assets AI panel.");
         }
 
         if (!result.inputMatchesActive || result.activeElementId !== "assistantInput") {
           throw new Error(
-            `Pressing Space should focus the AI composer. Active element: ${result.activeElementId || "<none>"}`,
+            `Pressing Space should focus the assets AI composer. Active element: ${result.activeElementId || "<none>"}`,
           );
         }
 
-        console.log("PASS: pressing Space opens and focuses the workspace AI assistant.");
+        console.log("PASS: pressing Space opens and focuses the assets AI assistant.");
         return;
       } catch (error) {
-        if (!isRetryablePlaywrightError(error) || attempt === 2) {
+        if (!isRetryablePlaywrightError(error) || attempt === 4) {
           throw error;
         }
+        await wait(250);
       } finally {
         try {
           runPw(["close"]);

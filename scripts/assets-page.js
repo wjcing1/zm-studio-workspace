@@ -8,6 +8,18 @@ import {
   projectIndex,
   studioData,
 } from "./shared/studio-data-client.js";
+import {
+  appendPendingAssistantMessage,
+  consumeAssistantEventReader,
+  finalizePendingAssistantMessage,
+  focusAssistantInput,
+  getPendingAssistantIndex,
+  renderAssistantMessages,
+  renderAssistantStarters,
+  replacePendingAssistantMessage,
+  serializeAssistantMessages,
+  shouldOpenAssistantFromSpace,
+} from "./shared/assistant-shell.js";
 import { setupWebApp } from "./shared/register-web-app.js?v=2026-03-30-auth-1";
 
 setupWebApp();
@@ -30,38 +42,28 @@ const state = {
     sending: false,
     error: "",
     backendReady: false,
+    showStarters: true,
+  },
+  ui: {
+    isAssistantOpen: false,
   },
 };
 
 const assetGrid = document.getElementById("assetGrid");
 const assetFilters = document.getElementById("assetFilters");
 const assetSearch = document.getElementById("assetSearch");
-const assistantMessages = document.getElementById("assistantMessages");
+const assistantCompanion = document.getElementById("assistantCompanion");
+const assistantPanel = document.getElementById("assistantPanel");
+const assistantCloseBtn = document.getElementById("assistantCloseBtn");
+const assistantBody = document.getElementById("assistantBody");
+const assistantStartersRegion = document.getElementById("assistantStartersRegion");
 const assistantStarters = document.getElementById("assistantStarters");
+const assistantTimeline = document.getElementById("assistantTimeline");
+const assistantMessages = document.getElementById("assistantMessages");
 const assistantStatus = document.getElementById("assistantStatus");
 const assistantInput = document.getElementById("assistantInput");
 const assistantSend = document.getElementById("assistantSend");
 const assistantComposer = document.getElementById("assistantComposer");
-
-function buildThinkingMarkup() {
-  return `
-    <div class="assistant-thinking" role="status" aria-label="AI is thinking">
-      <span class="thinking-dot"></span>
-      <span class="thinking-dot"></span>
-      <span class="thinking-dot"></span>
-    </div>
-  `;
-}
-
-function replacePendingAssistantMessage(content) {
-  const pendingIndex = state.chat.messages.findIndex((message) => message.pending);
-  if (pendingIndex === -1) return;
-
-  state.chat.messages[pendingIndex] = {
-    role: "assistant",
-    content,
-  };
-}
 
 function filteredAssets() {
   return assetsDatabase.filter((asset) => {
@@ -158,57 +160,75 @@ function renderAssetOverlay(asset) {
 }
 
 function renderAssistant() {
-  assistantStarters.innerHTML = studioData.assistant.starters
-    .map(
-      (prompt) => `
-        <button class="assistant-starter" data-starter-prompt="${escapeHtml(prompt)}" type="button">
-          ${escapeHtml(prompt)}
-        </button>
-      `,
-    )
-    .join("");
-
-  assistantMessages.innerHTML = state.chat.messages
-    .map(
-      (message) => `
-        <article class="assistant-message ${message.role === "user" ? "is-user" : "is-assistant"} ${message.pending ? "is-thinking" : ""}">
-          <div class="assistant-message-label">${message.role === "user" ? "You" : "AI"}</div>
-          <div class="assistant-message-body">${message.pending ? buildThinkingMarkup() : nl2br(message.content)}</div>
-        </article>
-      `,
-    )
-    .join("");
+  assistantPanel.hidden = !state.ui.isAssistantOpen;
+  assistantBody?.setAttribute("data-assistant-open", state.ui.isAssistantOpen ? "true" : "false");
+  assistantTimeline?.setAttribute("aria-busy", state.chat.sending ? "true" : "false");
+  assistantStartersRegion.dataset.state = state.chat.showStarters ? "visible" : "hidden";
+  assistantStartersRegion.hidden = !state.chat.showStarters;
+  assistantStarters.innerHTML = renderAssistantStarters(studioData.assistant.starters, escapeHtml);
+  assistantMessages.innerHTML = renderAssistantMessages(state.chat.messages, { nl2br });
 
   assistantInput.value = state.chat.input;
   assistantInput.disabled = state.chat.sending;
   assistantSend.disabled = state.chat.sending;
 
   if (state.chat.sending) {
-    assistantStatus.textContent = "Thinking…";
+    assistantStatus.textContent = "Thinking through the asset library…";
   } else if (state.chat.error) {
     assistantStatus.textContent = state.chat.error;
   } else if (state.chat.backendReady) {
-    assistantStatus.textContent = "Live AI backend connected.";
+    assistantStatus.textContent = "Asset AI backend connected.";
   } else {
     assistantStatus.textContent = ASSETS_STATIC_AI_HINT;
   }
 
-  assistantMessages.scrollTop = assistantMessages.scrollHeight;
+  assistantTimeline.scrollTop = assistantTimeline.scrollHeight;
+}
+
+function openAssistantPanel(options = {}) {
+  state.ui.isAssistantOpen = true;
+  renderAssistant();
+
+  if (options.focusInput) {
+    focusAssistantInput(assistantInput);
+  }
+}
+
+function closeAssistantPanel() {
+  if (!state.ui.isAssistantOpen) return;
+  state.ui.isAssistantOpen = false;
+  renderAssistant();
+}
+
+function handleAssistantShortcut(event) {
+  const isSpaceShortcut = event.code === "Space" || event.key === " " || event.key === "Spacebar";
+  if (isSpaceShortcut && shouldOpenAssistantFromSpace(event, document.activeElement)) {
+    event.preventDefault();
+    if (!event.repeat) {
+      openAssistantPanel({ focusInput: true });
+    }
+    return true;
+  }
+
+  return false;
 }
 
 async function sendChatMessage(rawText) {
   const content = rawText.trim();
   if (!content || state.chat.sending) return;
 
+  state.ui.isAssistantOpen = true;
   state.chat.messages.push({ role: "user", content });
   state.chat.messages.push({
     role: "assistant",
     content: "",
     pending: true,
+    streaming: true,
   });
   state.chat.input = "";
   state.chat.error = "";
   state.chat.sending = true;
+  state.chat.showStarters = false;
   renderAssistant();
 
   try {
@@ -218,28 +238,73 @@ async function sendChatMessage(rawText) {
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        messages: state.chat.messages
-          .filter((message) => !message.pending)
-          .map((message) => ({
-          role: message.role,
-          content: message.content,
-          })),
+        agent: "assets",
+        stream: true,
+        messages: serializeAssistantMessages(state.chat.messages),
       }),
     });
 
-    const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
       throw new Error(payload.error || `AI request failed with status ${response.status}.`);
     }
 
-    state.chat.backendReady = true;
-    replacePendingAssistantMessage(payload.reply || "I couldn't produce a reply just now.");
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("text/event-stream") && response.body?.getReader) {
+      const reader = response.body.getReader();
+      let sawChunk = false;
+      let streamError = "";
+
+      await consumeAssistantEventReader(reader, {
+        onChunk(payload) {
+          appendPendingAssistantMessage(state.chat.messages, payload.delta);
+          state.chat.backendReady = true;
+          sawChunk = true;
+          renderAssistant();
+        },
+        onError(payload) {
+          streamError = typeof payload.error === "string" ? payload.error : "AI stream failed.";
+        },
+        onDone() {
+          finalizePendingAssistantMessage(state.chat.messages);
+          renderAssistant();
+        },
+      });
+
+      if (streamError) {
+        state.chat.error = streamError;
+        const pendingIndex = getPendingAssistantIndex(state.chat.messages);
+        const pendingMessage = pendingIndex === -1 ? null : state.chat.messages[pendingIndex];
+        if (pendingMessage?.content) {
+          finalizePendingAssistantMessage(state.chat.messages, pendingMessage.content);
+        } else {
+          replacePendingAssistantMessage(state.chat.messages, `现在还没有拿到 AI 回复。\n\n${streamError}`);
+        }
+        return;
+      }
+
+      if (!sawChunk) {
+        throw new Error("AI stream ended before any content arrived.");
+      }
+
+      finalizePendingAssistantMessage(state.chat.messages);
+    } else {
+      const payload = await response.json().catch(() => ({}));
+      state.chat.backendReady = true;
+      replacePendingAssistantMessage(state.chat.messages, payload.reply || "I couldn't produce a reply just now.");
+    }
   } catch (error) {
     const rawMessage = error instanceof Error ? error.message : "AI service is currently unavailable.";
     const message =
       /status 404|failed to fetch|load failed/i.test(rawMessage) ? ASSETS_STATIC_AI_RECOVERY : rawMessage;
     state.chat.error = message;
-    replacePendingAssistantMessage(`现在还没有拿到 AI 回复。\n\n${message}`);
+    const pendingIndex = getPendingAssistantIndex(state.chat.messages);
+    const pendingMessage = pendingIndex === -1 ? null : state.chat.messages[pendingIndex];
+    if (pendingMessage?.content) {
+      finalizePendingAssistantMessage(state.chat.messages, pendingMessage.content);
+    } else {
+      replacePendingAssistantMessage(state.chat.messages, `现在还没有拿到 AI 回复。\n\n${message}`);
+    }
   } finally {
     state.chat.sending = false;
     renderAssistant();
@@ -257,6 +322,14 @@ assetFilters.addEventListener("click", (event) => {
 assetSearch.addEventListener("input", (event) => {
   state.searchQuery = event.target.value;
   renderAssets();
+});
+
+assistantCompanion?.addEventListener("click", () => {
+  openAssistantPanel({ focusInput: true });
+});
+
+assistantCloseBtn?.addEventListener("click", () => {
+  closeAssistantPanel();
 });
 
 assistantStarters.addEventListener("click", (event) => {
@@ -279,6 +352,25 @@ assistantInput.addEventListener("keydown", (event) => {
 assistantComposer.addEventListener("submit", (event) => {
   event.preventDefault();
   void sendChatMessage(state.chat.input);
+});
+
+document.addEventListener("keydown", (event) => {
+  handleAssistantShortcut(event);
+});
+
+window.addEventListener("keydown", (event) => {
+  if (event.defaultPrevented) {
+    return;
+  }
+
+  if (handleAssistantShortcut(event)) {
+    return;
+  }
+
+  if (event.key === "Escape" && state.ui.isAssistantOpen) {
+    event.preventDefault();
+    closeAssistantPanel();
+  }
 });
 
 renderAssetFilters();

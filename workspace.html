@@ -121,28 +121,55 @@
             </button>
 
             <aside class="workspace-assistant panel-surface" id="workspaceAssistantPanel" hidden aria-label="Workspace assistant">
-              <div class="workspace-assistant-head">
-                <div>
-                  <div class="assistant-kicker">Canvas Copilot</div>
-                  <h2 class="workspace-assistant-title">Think With The Board</h2>
+              <div class="workspace-assistant-sheet">
+                <div class="workspace-assistant-head">
+                  <div>
+                    <div class="assistant-kicker">Canvas Copilot</div>
+                    <h2 class="workspace-assistant-title">Think With The Board</h2>
+                  </div>
+                  <button class="workspace-assistant-close" id="assistantCloseBtn" type="button">Close</button>
                 </div>
-                <button class="workspace-assistant-close" id="assistantCloseBtn" type="button">Close</button>
+
+                <div class="workspace-assistant-body" id="workspaceAssistantBody">
+                  <p class="workspace-assistant-context" id="assistantContextSummary">
+                    The assistant prioritizes nearby cards, selected nodes, and connected context.
+                  </p>
+
+                  <section
+                    class="workspace-assistant-starters-region"
+                    id="assistantStartersRegion"
+                    data-state="visible"
+                    aria-label="Workspace assistant starter prompts"
+                  >
+                    <div class="assistant-starters" id="assistantStarters"></div>
+                  </section>
+
+                  <div
+                    class="workspace-assistant-timeline"
+                    id="assistantTimeline"
+                    role="log"
+                    aria-live="polite"
+                    aria-relevant="additions text"
+                  >
+                    <div class="assistant-thread" id="assistantMessages"></div>
+                  </div>
+                </div>
+
+                <div class="workspace-assistant-footer" id="workspaceAssistantFooter">
+                  <form class="assistant-composer" id="assistantComposer">
+                    <textarea
+                      class="assistant-input"
+                      id="assistantInput"
+                      name="assistantInput"
+                      placeholder="Ask the assistant to extend, summarize, group, or reorganize the nearby canvas..."
+                    ></textarea>
+                    <button class="assistant-send" id="assistantSend" type="submit">Apply With AI</button>
+                  </form>
+                  <div class="assistant-status" id="assistantStatus">
+                    Workspace AI requires a server backend. GitHub Pages serves the static canvas only.
+                  </div>
+                </div>
               </div>
-              <p class="workspace-assistant-copy" id="assistantContextSummary">
-                The assistant prioritizes nearby cards, selected nodes, and connected context.
-              </p>
-              <div class="assistant-starters" id="assistantStarters"></div>
-              <div class="assistant-thread" id="assistantMessages"></div>
-              <form class="assistant-composer" id="assistantComposer">
-                <textarea
-                  class="assistant-input"
-                  id="assistantInput"
-                  name="assistantInput"
-                  placeholder="Ask the assistant to extend, summarize, group, or reorganize the nearby canvas..."
-                ></textarea>
-                <button class="assistant-send" id="assistantSend" type="submit">Apply With AI</button>
-              </form>
-              <div class="assistant-status" id="assistantStatus">Workspace AI requires a server backend. GitHub Pages serves the static canvas only.</div>
             </aside>
 
             <input
@@ -182,6 +209,6 @@
       </main>
     </div>
 
-    <script type="module" src="./scripts/workspace-page.js?v=2026-03-31-file-1"></script>
+    <script type="module" src="./scripts/workspace-page.js?v=2026-04-01-workspace-ai-1"></script>
   </body>
 </html>

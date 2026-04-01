@@ -11,17 +11,14 @@
             "id": "70c8b03ddbb479eb",
             "type": "leaf",
             "state": {
-              "type": "canvas",
+              "type": "markdown",
               "state": {
-                "file": "boards/未命名.canvas",
-                "viewState": {
-                  "x": 45.93473429183777,
-                  "y": -74.46501951014505,
-                  "zoom": -0.09584584170426902
-                }
+                "file": "AGENT.md",
+                "mode": "source",
+                "source": false
               },
-              "icon": "lucide-layout-dashboard",
-              "title": "未命名"
+              "icon": "lucide-file",
+              "title": "AGENT"
             }
           }
         ]
@@ -168,7 +165,8 @@
               "title": "AGENT 的大纲"
             }
           }
-        ]
+        ],
+        "currentTab": 3
       }
     ],
     "direction": "horizontal",
@@ -186,8 +184,18 @@
       "bases:新建数据库": false
     }
   },
-  "active": "c1ee9fdb34b1f6f7",
+  "active": "70c8b03ddbb479eb",
   "lastOpenFiles": [
+    "boards/项目功能架构.canvas",
+    "boards/未命名.canvas",
+    "task_plan.md",
+    "progress.md",
+    "findings.md",
+    "docs/plans/2026-04-01-project-capability-architecture.md",
+    "docs/plans/2026-04-01-project-capability-architecture-design.md",
+    "docs/deploy-render.md",
+    "render.yaml",
+    "my-project-capability-architecture.xlsx",
     "tests/verify-workspace-file-node-ui.mjs",
     "tests/verify-workspace-file-upload-api.mjs",
     "docs/plans/2026-03-31-workspace-canvas-file-nodes.md",
@@ -210,10 +218,6 @@
     "media/assets/herb-render.png",
     "media/assets",
     "media",
-    "boards/未命名.canvas",
-    "boards",
-    "docs/ops/my-project-capability-architecture.xlsx",
-    "docs/ops",
     "docs/working/task_plan.md",
     "docs/working/progress.md",
     "docs/working/findings.md",

@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: zm-studio-workspace
+    runtime: node
+    plan: starter
+    autoDeploy: true
+    buildCommand: npm install
+    startCommand: node server.mjs
+    healthCheckPath: /health
+    disks:
+      - name: app-data
+        mountPath: /var/data
+        sizeGB: 5
+    envVars:
+      - key: MINIMAX_API_KEY
+        sync: false
+      - key: MINIMAX_BASE_URL
+        value: https://api.minimaxi.com/v1
+      - key: MINIMAX_MODEL
+        value: MiniMax-M2.7
+      - key: COLLAB_MODE
+        value: server
+      - key: COLLAB_PROVIDER
+        value: local-file
+      - key: BOARD_STORE_DIR
+        value: /var/data/boards
+      - key: UPLOAD_STORE_DIR
+        value: /var/data/uploads
+      - key: MEMORY_STORE_DIR
+        value: /var/data/memory

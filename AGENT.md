@@ -105,12 +105,6 @@
 
 默认目标仍然是直接更新工作簿，而不是长期依赖兜底方案。
 
-## 当前部署状态
-
-- 当前项目已经部署到 GitHub Pages，上线版本默认以 GitHub Pages 可访问结果为准。
-- 涉及页面入口、静态资源路径、`manifest.webmanifest`、`sw.js`、路由兜底等改动时，要默认保持 GitHub Pages 兼容。
-- GitHub Pages 只承载静态前端内容；依赖 Node 服务或 WebSocket 后端的能力，要明确区分“静态可用部分”和“服务端可用部分”。
-
 ## 本仓库的执行约束
 
 - 这份 Excel 是能力台账的单一事实来源。

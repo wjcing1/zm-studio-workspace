@@ -3,8 +3,8 @@ import process from "node:process";
 
 const CODEX_HOME = process.env.CODEX_HOME || `${process.env.HOME}/.codex`;
 const PWCLI = `${CODEX_HOME}/skills/playwright/scripts/playwright_cli.sh`;
-const PORT = 4173;
-const PAGE_URL = `http://127.0.0.1:${PORT}/workspace.html?codex-test-auth=1`;
+const PORT = 4194;
+const PAGE_URL = `http://127.0.0.1:${PORT}/workspace.html?codex-test-auth=1&workspace-shortcut-test=1`;
 let session = buildSessionId();
 
 function buildSessionId() {

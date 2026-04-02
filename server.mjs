@@ -49,6 +49,16 @@ function loadDotEnv() {
 
 loadDotEnv();
 
+function parseJsonEnv(value, fallback) {
+  if (!value) return fallback;
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+}
+
 const PORT = Number(process.env.PORT || 4173);
 const MINIMAX_BASE_URL = process.env.MINIMAX_BASE_URL || "https://api.minimaxi.com/v1";
 const MODEL = process.env.MINIMAX_MODEL || "MiniMax-M2.7";
@@ -57,6 +67,13 @@ const CHAT_STREAM_TEST_MODE = process.env.CHAT_STREAM_TEST_MODE === "1";
 const CHAT_STREAM_TEST_TEXT =
   process.env.CHAT_STREAM_TEST_TEXT || "This is a local streaming test response for the projects assistant.";
 const CHAT_STREAM_TEST_DELAY_MS = Number(process.env.CHAT_STREAM_TEST_DELAY_MS || 70);
+const WORKSPACE_ASSISTANT_STREAM_TEST_MODE = process.env.WORKSPACE_ASSISTANT_STREAM_TEST_MODE === "1";
+const WORKSPACE_ASSISTANT_STREAM_TEST_TEXT =
+  process.env.WORKSPACE_ASSISTANT_STREAM_TEST_TEXT || "This is a local streaming test response for the workspace assistant.";
+const WORKSPACE_ASSISTANT_STREAM_TEST_DELAY_MS = Number(process.env.WORKSPACE_ASSISTANT_STREAM_TEST_DELAY_MS || 70);
+const WORKSPACE_ASSISTANT_STREAM_TEST_OPERATIONS = normalizeWorkspaceOperations(
+  parseJsonEnv(process.env.WORKSPACE_ASSISTANT_STREAM_TEST_OPERATIONS_JSON, []),
+);
 const collaborationConfig = getCollaborationConfig(process.env, ROOT_DIR);
 const uploadStorageDir = resolveUploadStorageDir(process.env.UPLOAD_STORE_DIR || path.join(ROOT_DIR, ".data", "uploads"));
 const studioRepository = createStudioRepository({
@@ -226,14 +243,56 @@ function inferUploadKind(mimeType, filename = "") {
   return "other";
 }
 
-async function buildDeveloperPrompt() {
+function normalizeChatAgent(value) {
+  return value === "projects" || value === "assets" ? value : "portfolio";
+}
+
+async function buildChatPrompt(agent = "portfolio") {
   const studioSnapshot = await studioRepository.getStudioSnapshot();
+  const projects = studioSnapshot.projects.map(({ canvas, ...project }) => project);
   const portfolioSnapshot = {
     studio: studioSnapshot.studio,
     assistant: studioSnapshot.assistant,
-    projects: studioSnapshot.projects.map(({ canvas, ...project }) => project),
+    projects,
     assets: studioSnapshot.assets,
   };
+
+  if (agent === "projects") {
+    return [
+      "You are the AI project manager for ZM Studio.",
+      "Answer only from the project library provided below.",
+      "Focus on project summaries, prioritization, case-study picks, sequencing, and filtering suggestions.",
+      "Do not invent projects, locations, budgets, team members, or statuses.",
+      "If a requested detail is missing from the data, say that the current project library does not include it.",
+      "Prefer concise, direct answers with light formatting.",
+      "Match the user's language when possible.",
+      "",
+      "Project library:",
+      JSON.stringify(
+        {
+          studio: studioSnapshot.studio,
+          projects,
+        },
+        null,
+        2,
+      ),
+    ].join("\n");
+  }
+
+  if (agent === "assets") {
+    return [
+      "You are the asset librarian for ZM Studio.",
+      "Answer only from the asset library and linked project data provided below.",
+      "Focus on finding relevant source files, related projects, deliverables, locations, and representative case-study material.",
+      "Do not invent assets, file links, project metadata, or deliverables.",
+      "If a requested detail is missing from the data, say that the current asset library does not include it.",
+      "Prefer concise, direct answers with light formatting.",
+      "Match the user's language when possible.",
+      "",
+      "Asset library:",
+      JSON.stringify(portfolioSnapshot, null, 2),
+    ].join("\n");
+  }
 
   return [
     "You are the portfolio assistant for ZM Studio.",
@@ -313,11 +372,8 @@ function writeSseEvent(response, payload) {
   response.write(`data: ${JSON.stringify(payload)}\n\n`);
 }
 
-async function streamStubChatResponse(response) {
-  const text = CHAT_STREAM_TEST_TEXT;
+async function writeChunkedAssistantText(response, text, delayMs = 0) {
   const chunkSize = Math.max(6, Math.ceil(text.length / 5));
-
-  openSseStream(response);
 
   for (let index = 0; index < text.length; index += chunkSize) {
     const delta = text.slice(index, index + chunkSize);
@@ -325,12 +381,40 @@ async function streamStubChatResponse(response) {
       type: "chunk",
       delta,
     });
-    await wait(CHAT_STREAM_TEST_DELAY_MS);
+    if (delayMs > 0) {
+      await wait(delayMs);
+    }
   }
+}
 
+async function streamStubChatResponse(response) {
+  openSseStream(response);
+  await writeChunkedAssistantText(response, CHAT_STREAM_TEST_TEXT, CHAT_STREAM_TEST_DELAY_MS);
   writeSseEvent(response, {
     type: "done",
     model: "stream-test-stub",
+  });
+  response.end();
+}
+
+async function streamStubWorkspaceAssistantResponse(response) {
+  openSseStream(response);
+  await writeChunkedAssistantText(response, WORKSPACE_ASSISTANT_STREAM_TEST_TEXT, WORKSPACE_ASSISTANT_STREAM_TEST_DELAY_MS);
+  writeSseEvent(response, {
+    type: "done",
+    model: "workspace-stream-test-stub",
+    operations: WORKSPACE_ASSISTANT_STREAM_TEST_OPERATIONS,
+  });
+  response.end();
+}
+
+async function streamWorkspaceAssistantPayload(response, payload) {
+  openSseStream(response);
+  await writeChunkedAssistantText(response, payload.reply, 18);
+  writeSseEvent(response, {
+    type: "done",
+    model: payload.model || MODEL,
+    operations: payload.operations || [],
   });
   response.end();
 }
@@ -529,6 +613,7 @@ async function handleChat(request, response) {
   }
 
   const messages = normalizeMessages(body.messages);
+  const agent = normalizeChatAgent(body?.agent);
   const streamRequested = body?.stream === true;
   if (messages.length === 0) {
     sendJson(response, 400, { error: "At least one chat message is required." });
@@ -551,7 +636,7 @@ async function handleChat(request, response) {
     const chatMessages = [
       {
         role: "system",
-        content: await buildDeveloperPrompt(),
+        content: await buildChatPrompt(agent),
       },
       ...messages,
     ];
@@ -635,18 +720,24 @@ async function handleChat(request, response) {
 }
 
 async function handleWorkspaceAssistant(request, response) {
-  if (!client) {
-    sendJson(response, 503, {
-      error: "MINIMAX_API_KEY is not configured on the server. Add it to your environment and restart the app.",
-    });
-    return;
-  }
-
   let body;
   try {
     body = await parseJsonBody(request);
   } catch {
     sendJson(response, 400, { error: "Request body must be valid JSON." });
+    return;
+  }
+
+  const streamRequested = body?.stream === true;
+  if (streamRequested && WORKSPACE_ASSISTANT_STREAM_TEST_MODE) {
+    await streamStubWorkspaceAssistantResponse(response);
+    return;
+  }
+
+  if (!client) {
+    sendJson(response, 503, {
+      error: "MINIMAX_API_KEY is not configured on the server. Add it to your environment and restart the app.",
+    });
     return;
   }
 
@@ -715,12 +806,31 @@ async function handleWorkspaceAssistant(request, response) {
       console.warn(error instanceof Error ? error.message : "Unable to persist workspace memory.");
     }
 
-    sendJson(response, 200, {
+    const responsePayload = {
       reply,
       operations,
       model: MODEL,
-    });
+    };
+
+    if (streamRequested) {
+      await streamWorkspaceAssistantPayload(response, responsePayload);
+      return;
+    }
+
+    sendJson(response, 200, responsePayload);
   } catch (error) {
+    if (streamRequested && response.headersSent) {
+      writeSseEvent(response, {
+        type: "error",
+        error:
+          error instanceof Error
+            ? `MiniMax request failed: ${error.message}`
+            : "MiniMax request failed.",
+      });
+      response.end();
+      return;
+    }
+
     sendJson(response, 502, {
       error:
         error instanceof Error

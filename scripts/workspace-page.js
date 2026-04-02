@@ -39,6 +39,18 @@ import {
   normalizePresenceState,
   readBoardPayloadFromDoc,
 } from "./shared/workspace-collaboration.js";
+import {
+  appendPendingAssistantMessage,
+  consumeAssistantEventReader,
+  finalizePendingAssistantMessage,
+  focusAssistantInput,
+  getPendingAssistantIndex,
+  renderAssistantMessages,
+  renderAssistantStarters,
+  replacePendingAssistantMessage,
+  serializeAssistantMessages,
+  shouldOpenAssistantFromSpace,
+} from "./shared/assistant-shell.js";
 import { setupWebApp } from "./shared/register-web-app.js?v=2026-03-30-auth-1";
 
 setupWebApp();
@@ -117,6 +129,7 @@ const state = {
     sending: false,
     error: "",
     backendReady: false,
+    showStarters: true,
   },
 };
 
@@ -149,8 +162,11 @@ const collaborationStatus = document.getElementById("collaborationStatus");
 const assistantCompanion = document.getElementById("assistantCompanion");
 const workspaceAssistantPanel = document.getElementById("workspaceAssistantPanel");
 const assistantCloseBtn = document.getElementById("assistantCloseBtn");
+const workspaceAssistantBody = document.getElementById("workspaceAssistantBody");
 const assistantContextSummary = document.getElementById("assistantContextSummary");
+const assistantStartersRegion = document.getElementById("assistantStartersRegion");
 const assistantStarters = document.getElementById("assistantStarters");
+const assistantTimeline = document.getElementById("assistantTimeline");
 const assistantMessages = document.getElementById("assistantMessages");
 const assistantStatus = document.getElementById("assistantStatus");
 const assistantInput = document.getElementById("assistantInput");
@@ -1173,26 +1189,6 @@ function renderMarqueeSelection() {
   marqueeSelection.style.height = `${marquee.height}px`;
 }
 
-function buildThinkingMarkup() {
-  return `
-    <div class="assistant-thinking" role="status" aria-label="AI is thinking">
-      <span class="thinking-dot"></span>
-      <span class="thinking-dot"></span>
-      <span class="thinking-dot"></span>
-    </div>
-  `;
-}
-
-function replacePendingAssistantMessage(content) {
-  const pendingIndex = state.assistant.messages.findIndex((message) => message.pending);
-  if (pendingIndex === -1) return;
-
-  state.assistant.messages[pendingIndex] = {
-    role: "assistant",
-    content,
-  };
-}
-
 function buildAssistantSummary(board = getActiveBoard()) {
   const nearby = collectNearbyNodes(board, { x: state.pointer.worldX, y: state.pointer.worldY }, 3);
   const selected = getSelectedNodes(board);
@@ -1216,24 +1212,15 @@ function renderAssistantContext() {
 
   assistantCompanion.hidden = false;
   workspaceAssistantPanel.hidden = !state.ui.isAssistantOpen;
+  workspaceAssistantBody?.setAttribute("data-assistant-open", state.ui.isAssistantOpen ? "true" : "false");
 }
 
 function renderAssistantThread() {
-  assistantStarters.innerHTML = WORKSPACE_STARTERS.map(
-    (prompt) =>
-      `<button class="assistant-starter" data-starter-prompt="${escapeHtml(prompt)}" type="button">${escapeHtml(prompt)}</button>`,
-  ).join("");
-
-  assistantMessages.innerHTML = state.assistant.messages
-    .map(
-      (message) => `
-        <article class="assistant-message ${message.role === "user" ? "is-user" : "is-assistant"} ${message.pending ? "is-thinking" : ""}">
-          <div class="assistant-message-label">${message.role === "user" ? "You" : "AI"}</div>
-          <div class="assistant-message-body">${message.pending ? buildThinkingMarkup() : nl2br(message.content)}</div>
-        </article>
-      `,
-    )
-    .join("");
+  assistantTimeline?.setAttribute("aria-busy", state.assistant.sending ? "true" : "false");
+  assistantStartersRegion.dataset.state = state.assistant.showStarters ? "visible" : "hidden";
+  assistantStartersRegion.hidden = !state.assistant.showStarters;
+  assistantStarters.innerHTML = renderAssistantStarters(WORKSPACE_STARTERS, escapeHtml);
+  assistantMessages.innerHTML = renderAssistantMessages(state.assistant.messages, { nl2br });
 
   assistantInput.value = state.assistant.input;
   assistantInput.disabled = state.assistant.sending;
@@ -1249,25 +1236,16 @@ function renderAssistantThread() {
     assistantStatus.textContent = WORKSPACE_STATIC_AI_HINT;
   }
 
-  assistantMessages.scrollTop = assistantMessages.scrollHeight;
-}
-
-function focusAssistantInput() {
-  requestAnimationFrame(() => {
-    assistantInput?.focus({ preventScroll: true });
-    if (typeof assistantInput?.selectionStart === "number") {
-      const caret = assistantInput.value.length;
-      assistantInput.setSelectionRange(caret, caret);
-    }
-  });
+  assistantTimeline.scrollTop = assistantTimeline.scrollHeight;
 }
 
 function openAssistantPanel(options = {}) {
   state.ui.isAssistantOpen = true;
+  renderAssistantThread();
   renderAssistantContext();
 
   if (options.focusInput) {
-    focusAssistantInput();
+    focusAssistantInput(assistantInput);
   }
 }
 
@@ -1279,10 +1257,11 @@ function closeAssistantPanel() {
 
 function toggleAssistantPanel(options = {}) {
   state.ui.isAssistantOpen = !state.ui.isAssistantOpen;
+  renderAssistantThread();
   renderAssistantContext();
 
   if (state.ui.isAssistantOpen && options.focusInput) {
-    focusAssistantInput();
+    focusAssistantInput(assistantInput);
   }
 }
 
@@ -1801,6 +1780,25 @@ function buildWorkspaceAssistantRequest() {
   };
 }
 
+function applyWorkspaceAssistantOperations(operations) {
+  const board = getActiveBoard();
+  const normalizedOperations = Array.isArray(operations) ? operations : [];
+  if (normalizedOperations.length === 0) {
+    return [];
+  }
+
+  const beforeSnapshot = createBoardSnapshot(board);
+  const applied = applyBoardOperations(board, normalizedOperations);
+
+  if (applied.length > 0) {
+    pushBoardHistory(board, beforeSnapshot);
+    persistActiveBoard();
+    renderCanvas();
+  }
+
+  return applied;
+}
+
 async function sendAssistantMessage(rawText) {
   const content = rawText.trim();
   if (!content || state.assistant.sending) return;
@@ -1811,10 +1809,12 @@ async function sendAssistantMessage(rawText) {
     role: "assistant",
     content: "",
     pending: true,
+    streaming: true,
   });
   state.assistant.input = "";
   state.assistant.error = "";
   state.assistant.sending = true;
+  state.assistant.showStarters = false;
   renderAssistantThread();
   renderAssistantContext();
 
@@ -1824,39 +1824,90 @@ async function sendAssistantMessage(rawText) {
       headers: {
         "content-type": "application/json",
       },
-      body: JSON.stringify(buildWorkspaceAssistantRequest()),
+      body: JSON.stringify({
+        ...buildWorkspaceAssistantRequest(),
+        stream: true,
+      }),
     });
 
-    const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
       throw new Error(payload.error || `Workspace AI request failed with status ${response.status}.`);
     }
 
-    state.assistant.backendReady = true;
-    const board = getActiveBoard();
-    const operations = Array.isArray(payload.operations) ? payload.operations : [];
-    let applied = [];
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("text/event-stream") && response.body?.getReader) {
+      const reader = response.body.getReader();
+      let sawChunk = false;
+      let streamError = "";
+      let donePayload = null;
 
-    if (operations.length > 0) {
-      const beforeSnapshot = createBoardSnapshot(board);
-      applied = applyBoardOperations(board, operations);
+      await consumeAssistantEventReader(reader, {
+        onChunk(payload) {
+          appendPendingAssistantMessage(state.assistant.messages, payload.delta);
+          state.assistant.backendReady = true;
+          sawChunk = true;
+          renderAssistantThread();
+        },
+        onError(payload) {
+          streamError = typeof payload.error === "string" ? payload.error : "Workspace AI stream failed.";
+        },
+        onDone(payload) {
+          donePayload = payload;
+        },
+      });
 
-      if (applied.length > 0) {
-        pushBoardHistory(board, beforeSnapshot);
-        persistActiveBoard();
-        renderCanvas();
+      if (streamError) {
+        state.assistant.error = streamError;
+        const pendingIndex = getPendingAssistantIndex(state.assistant.messages);
+        const pendingMessage = pendingIndex === -1 ? null : state.assistant.messages[pendingIndex];
+        if (pendingMessage?.content) {
+          finalizePendingAssistantMessage(state.assistant.messages, pendingMessage.content);
+        } else {
+          replacePendingAssistantMessage(
+            state.assistant.messages,
+            `The workspace assistant could not respond right now.\n\n${streamError}`,
+          );
+        }
+        return;
       }
-    }
 
-    const suffix =
-      applied.length > 0 ? `\n\nApplied ${applied.length} canvas change${applied.length > 1 ? "s" : ""}.` : "";
-    replacePendingAssistantMessage((payload.reply || "I couldn't produce a reply just now.") + suffix);
+      if (!sawChunk) {
+        throw new Error("Workspace AI stream ended before any content arrived.");
+      }
+
+      finalizePendingAssistantMessage(state.assistant.messages);
+      const applied = applyWorkspaceAssistantOperations(donePayload?.operations);
+      if (applied.length > 0) {
+        const latestIndex = state.assistant.messages.length - 1;
+        state.assistant.messages[latestIndex] = {
+          role: "assistant",
+          content: `${state.assistant.messages[latestIndex].content}\n\nApplied ${applied.length} canvas change${applied.length > 1 ? "s" : ""}.`,
+        };
+      }
+    } else {
+      const payload = await response.json().catch(() => ({}));
+      state.assistant.backendReady = true;
+      const applied = applyWorkspaceAssistantOperations(payload.operations);
+      const suffix =
+        applied.length > 0 ? `\n\nApplied ${applied.length} canvas change${applied.length > 1 ? "s" : ""}.` : "";
+      replacePendingAssistantMessage(
+        state.assistant.messages,
+        (payload.reply || "I couldn't produce a reply just now.") + suffix,
+      );
+    }
   } catch (error) {
     const rawMessage = error instanceof Error ? error.message : "Workspace AI is currently unavailable.";
     const message =
       /status 404|failed to fetch|load failed/i.test(rawMessage) ? WORKSPACE_STATIC_AI_RECOVERY : rawMessage;
     state.assistant.error = message;
-    replacePendingAssistantMessage(`The workspace assistant could not respond right now.\n\n${message}`);
+    const pendingIndex = getPendingAssistantIndex(state.assistant.messages);
+    const pendingMessage = pendingIndex === -1 ? null : state.assistant.messages[pendingIndex];
+    if (pendingMessage?.content) {
+      finalizePendingAssistantMessage(state.assistant.messages, pendingMessage.content);
+    } else {
+      replacePendingAssistantMessage(state.assistant.messages, `The workspace assistant could not respond right now.\n\n${message}`);
+    }
   } finally {
     state.assistant.sending = false;
     renderAssistantThread();
@@ -2593,7 +2644,7 @@ window.addEventListener("keydown", (event) => {
   const isTypingTarget = target?.matches?.("textarea, input");
   const isSpaceShortcut = event.code === "Space" || event.key === " " || event.key === "Spacebar";
 
-  if (isSpaceShortcut && !isTypingTarget) {
+  if (isSpaceShortcut && shouldOpenAssistantFromSpace(event, target)) {
     event.preventDefault();
     if (!event.repeat) {
       openAssistantPanel({ focusInput: true });

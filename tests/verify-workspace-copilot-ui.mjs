@@ -38,6 +38,18 @@ async function main() {
       message: "Workspace should expose the expanded AI assistant panel shell.",
     },
     {
+      ok: source.includes('id="workspaceAssistantBody"') && source.includes('id="workspaceAssistantFooter"'),
+      message: "Workspace AI should expose dedicated sheet body and footer regions.",
+    },
+    {
+      ok: source.includes('id="assistantStartersRegion"'),
+      message: "Workspace AI should expose a dedicated starter-prompt region.",
+    },
+    {
+      ok: source.includes('id="assistantTimeline"') && (source.includes('role="log"') || source.includes('aria-live="polite"')),
+      message: "Workspace AI should expose an accessible streaming timeline region.",
+    },
+    {
       ok: source.includes('id="canvasImportInput"'),
       message: "Workspace should include a JSON Canvas import input control.",
     },
@@ -59,8 +71,23 @@ async function main() {
       message: "Workspace should style the AI trigger as a breathing pulse.",
     },
     {
+      ok:
+        styleSource.includes(".workspace-assistant-sheet") &&
+        styleSource.includes(".workspace-assistant-body") &&
+        styleSource.includes(".workspace-assistant-footer"),
+      message: "Workspace should style the GPT-style sheet regions.",
+    },
+    {
       ok: !scriptSource.includes("positionAssistantCompanion("),
       message: "Workspace should not keep JavaScript for a mouse-following AI trigger.",
+    },
+    {
+      ok: scriptSource.includes('fetch("/api/workspace-assistant"') && scriptSource.includes("response.body.getReader"),
+      message: "Workspace AI should stream prompts through /api/workspace-assistant instead of waiting for one final payload.",
+    },
+    {
+      ok: scriptSource.includes("showStarters"),
+      message: "Workspace AI should track starter-prompt visibility in client state.",
     },
   ];
 

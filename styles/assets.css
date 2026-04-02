@@ -6,6 +6,10 @@ body[data-page="zm-assets"] .section-wrap {
   max-width: 1540px;
 }
 
+.assets-main {
+  min-width: 0;
+}
+
 .assets-toolbar {
   display: grid;
   gap: 24px;
@@ -541,6 +545,16 @@ body[data-page="zm-assets"] .section-wrap {
   }
 }
 
+.assistant-footer {
+  display: grid;
+  gap: 10px;
+  padding: 18px 22px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.04)),
+    rgba(7, 7, 7, 0.7);
+}
+
 .assistant-composer {
   display: grid;
   gap: 12px;
@@ -560,16 +574,6 @@ body[data-page="zm-assets"] .section-wrap {
 
 .assistant-input:focus-visible {
   border-color: rgba(255, 255, 255, 0.18);
-}
-
-.assistant-footer {
-  display: grid;
-  gap: 10px;
-  padding: 18px 22px 20px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.04)),
-    rgba(7, 7, 7, 0.7);
 }
 
 .assistant-send {

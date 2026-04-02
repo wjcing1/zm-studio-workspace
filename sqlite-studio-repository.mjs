@@ -74,6 +74,69 @@ function safeJsonParse(value, fallback) {
   }
 }
 
+function normalizeAssetMeta(value = {}) {
+  const meta = value && typeof value === "object" && !Array.isArray(value) ? clone(value) : {};
+
+  if (!Array.isArray(meta.keywords)) {
+    meta.keywords = [];
+  }
+
+  if (!Array.isArray(meta.materials)) {
+    meta.materials = [];
+  }
+
+  return meta;
+}
+
+function buildAssetSearchText(asset = {}) {
+  const meta = normalizeAssetMeta(asset.meta);
+
+  return [
+    asset.title,
+    asset.category,
+    asset.format,
+    asset.groupName,
+    asset.sourceLabel,
+    meta.spaceType,
+    meta.shotType,
+    meta.viewAngle,
+    meta.style,
+    meta.colorMood,
+    ...meta.materials,
+    ...meta.keywords,
+  ]
+    .filter((value) => typeof value === "string" && value.trim())
+    .join(" ")
+    .trim();
+}
+
+function normalizeSeedAsset(asset = {}, projectIndex = new Map()) {
+  const project = asset.projectId ? projectIndex.get(asset.projectId) : null;
+  const meta = normalizeAssetMeta(asset.meta);
+  const fileUrl =
+    typeof asset.fileUrl === "string" && asset.fileUrl.trim() ? asset.fileUrl.trim() : project?.website || "";
+
+  return {
+    ...clone(asset),
+    projectId: asset.projectId || null,
+    category: asset.category || "",
+    format: asset.format || "",
+    size: asset.size || "",
+    url: asset.url || "",
+    groupName: typeof asset.groupName === "string" && asset.groupName.trim() ? asset.groupName.trim() : "Archive",
+    sourceLabel: asset.sourceLabel || "",
+    fileUrl,
+    actionLabel:
+      typeof asset.actionLabel === "string" && asset.actionLabel.trim() ? asset.actionLabel.trim() : "Open archive",
+    isFeatured: Boolean(asset.isFeatured),
+    searchText:
+      typeof asset.searchText === "string" && asset.searchText.trim()
+        ? asset.searchText.trim()
+        : buildAssetSearchText({ ...asset, meta }),
+    meta,
+  };
+}
+
 function normalizeBoardPayload(boardKey, input = {}, seed = {}) {
   return {
     key: boardKey,
@@ -235,6 +298,7 @@ function buildSeedSnapshot() {
       description: project.summary,
     }),
   }));
+  const projectIndex = new Map(projects.map((project) => [project.id, project]));
 
   return {
     studio: clone(studioSeedData.studio),
@@ -246,7 +310,7 @@ function buildSeedSnapshot() {
       }),
     },
     projects,
-    assets: clone(studioSeedData.assets),
+    assets: studioSeedData.assets.map((asset) => normalizeSeedAsset(asset, projectIndex)),
   };
 }
 
@@ -269,16 +333,28 @@ export function createSqliteStudioRepository({ dbPath }) {
 
   async function applyMigrations() {
     const source = await readFile(path.join(process.cwd(), "data", "sql", "migrations", "001_initial_schema.sql"), "utf8");
-    openDb().exec(source);
+    const database = openDb();
+    database.exec(source);
+
+    const ensureColumn = (tableName, columnName, definition) => {
+      const existing = database.prepare(`PRAGMA table_info(${tableName})`).all();
+      if (existing.some((column) => column.name === columnName)) {
+        return;
+      }
+
+      database.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
+    };
+
+    ensureColumn("assets", "group_name", "TEXT NOT NULL DEFAULT ''");
+    ensureColumn("assets", "action_label", "TEXT NOT NULL DEFAULT ''");
+    ensureColumn("assets", "is_featured", "INTEGER NOT NULL DEFAULT 0");
+    ensureColumn("assets", "search_text", "TEXT NOT NULL DEFAULT ''");
+    ensureColumn("assets", "meta_json", "TEXT NOT NULL DEFAULT '{}'");
   }
 
   function seedDatabase() {
     const snapshot = buildSeedSnapshot();
     const database = openDb();
-    const hasProjects = database.prepare("SELECT COUNT(*) AS count FROM projects").get();
-    if (Number(hasProjects?.count || 0) > 0) {
-      return;
-    }
 
     const tx = database.transaction(() => {
       database
@@ -339,13 +415,15 @@ export function createSqliteStudioRepository({ dbPath }) {
         });
       }
 
+      database.prepare("DELETE FROM assets").run();
       for (const [index, asset] of snapshot.assets.entries()) {
         database
           .prepare(
             `
               INSERT OR REPLACE INTO assets (
-                id, project_id, title, category, format, size, url, source_label, file_url, sort_order
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                id, project_id, title, category, format, size, url, group_name, source_label, file_url,
+                action_label, is_featured, search_text, meta_json, sort_order
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `,
           )
           .run(
@@ -356,22 +434,31 @@ export function createSqliteStudioRepository({ dbPath }) {
             asset.format || "",
             asset.size || "",
             asset.url || "",
+            asset.groupName || "",
             asset.sourceLabel || "",
             asset.fileUrl || "",
+            asset.actionLabel || "",
+            asset.isFeatured ? 1 : 0,
+            asset.searchText || "",
+            JSON.stringify(normalizeAssetMeta(asset.meta)),
             index,
           );
       }
 
-      saveBoardInternal(database, "overview", snapshot.canvas.overview, {
-        projectId: null,
-        kind: "overview",
-      });
+      if (!readBoardRows("overview")) {
+        saveBoardInternal(database, "overview", snapshot.canvas.overview, {
+          projectId: null,
+          kind: "overview",
+        });
+      }
 
       for (const project of snapshot.projects) {
-        saveBoardInternal(database, project.id, project.canvas, {
-          projectId: project.id,
-          kind: "project",
-        });
+        if (!readBoardRows(project.id)) {
+          saveBoardInternal(database, project.id, project.canvas, {
+            projectId: project.id,
+            kind: "project",
+          });
+        }
       }
     });
 
@@ -582,6 +669,7 @@ export function createSqliteStudioRepository({ dbPath }) {
         .all();
       const projectRows = database.prepare("SELECT * FROM projects ORDER BY sort_order ASC, id ASC").all();
       const assetRows = database.prepare("SELECT * FROM assets ORDER BY sort_order ASC, id ASC").all();
+      const projectUrlIndex = new Map(projectRows.map((project) => [project.id, project.website]));
       const { deliverablesByProject, teamsByProject } = loadProjectCollections();
 
       const boardsByKey = new Map();
@@ -623,17 +711,40 @@ export function createSqliteStudioRepository({ dbPath }) {
           team: teamsByProject.get(project.id) || [],
           canvas: boardsByKey.get(project.id) || null,
         })),
-        assets: assetRows.map((asset) => ({
-          id: asset.id,
-          title: asset.title,
-          category: asset.category,
-          format: asset.format,
-          size: asset.size,
-          url: asset.url,
-          projectId: asset.project_id || null,
-          sourceLabel: asset.source_label,
-          fileUrl: asset.file_url,
-        })),
+        assets: assetRows.map((asset) => {
+          const meta = normalizeAssetMeta(safeJsonParse(asset.meta_json, {}));
+          const groupName = asset.group_name || "Archive";
+          const actionLabel = asset.action_label || "Open archive";
+          const fileUrl = asset.file_url || projectUrlIndex.get(asset.project_id) || "";
+          const searchText =
+            typeof asset.search_text === "string" && asset.search_text.trim()
+              ? asset.search_text
+              : buildAssetSearchText({
+                  title: asset.title,
+                  category: asset.category,
+                  format: asset.format,
+                  groupName,
+                  sourceLabel: asset.source_label,
+                  meta,
+                });
+
+          return {
+            id: asset.id,
+            title: asset.title,
+            category: asset.category,
+            format: asset.format,
+            size: asset.size,
+            url: asset.url,
+            projectId: asset.project_id || null,
+            groupName,
+            sourceLabel: asset.source_label,
+            fileUrl,
+            actionLabel,
+            isFeatured: Boolean(asset.is_featured),
+            searchText,
+            meta,
+          };
+        }),
       };
     },
     async getBoard(boardKey) {

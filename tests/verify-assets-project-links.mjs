@@ -4,28 +4,42 @@ import process from "node:process";
 
 async function main() {
   const root = process.cwd();
-  const [dataSource, assetsPageSource] = await Promise.all([
+  const [dataSource, assetsPageSource, assetsStylesSource] = await Promise.all([
     readFile(path.join(root, "studio-data.mjs"), "utf8"),
     readFile(path.join(root, "scripts", "assets-page.js"), "utf8"),
+    readFile(path.join(root, "styles", "assets.css"), "utf8"),
   ]);
 
   const checks = [
     {
-      ok:
-        dataSource.includes('title: "利雅得电梯展汇报方案"') &&
-        dataSource.includes('title: "舒勇 SHOW ROOM 提案"'),
-      message: "Asset dataset should contain archive-backed asset titles.",
+      ok: dataSource.includes("groupName:") && dataSource.includes("actionLabel:") && dataSource.includes("searchText:"),
+      message: "Asset seed data should expose project grouping, action labels, and hidden search text.",
     },
     {
-      ok: /projectId:\s*"PRJ-00[1-4]"/.test(dataSource) && dataSource.includes("fileUrl:"),
-      message: "Asset dataset should link assets to a projectId and an original fileUrl.",
+      ok: dataSource.includes("meta: {") && dataSource.includes("keywords:"),
+      message: "Asset seed data should include hidden structured metadata for AI/search.",
     },
     {
       ok:
+        assetsPageSource.includes("asset-feed") &&
+        !assetsPageSource.includes("asset-project-section") &&
+        assetsPageSource.includes("asset.searchText") &&
         assetsPageSource.includes("Open project") &&
-        assetsPageSource.includes("Open file") &&
-        assetsPageSource.includes("asset-actions"),
-      message: "Assets page renderer should expose project and file actions for each card.",
+        assetsPageSource.includes("asset-actions") &&
+        assetsPageSource.includes("assistantCompanion") &&
+        assetsPageSource.includes("stream: true") &&
+        assetsPageSource.includes("assistant-shell"),
+      message: "Assets page renderer should use a continuous feed while keeping hidden-search behavior, project actions, and the floating AI companion shell.",
+    },
+    {
+      ok:
+        assetsStylesSource.includes(".asset-feed") &&
+        (assetsStylesSource.includes("column-count: 5") || assetsStylesSource.includes("columns: 5")) &&
+        assetsStylesSource.includes(".assistant-companion") &&
+        assetsStylesSource.includes(".assistant-panel") &&
+        assetsStylesSource.includes("position: fixed") &&
+        assetsStylesSource.includes("break-inside: avoid"),
+      message: "Assets styles should implement a full-width masonry feed with the floating AI companion panel.",
     },
   ];
 
@@ -37,7 +51,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log("PASS: Assets page exposes real project-linked asset cards.");
+  console.log("PASS: Assets page exposes a masonry feed with project-linked actions and hidden metadata support.");
 }
 
 main().catch((error) => {

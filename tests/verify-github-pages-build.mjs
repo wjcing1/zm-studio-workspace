@@ -14,7 +14,7 @@ async function assertExists(filePath, message) {
 async function main() {
   const root = process.cwd();
 
-  execFileSync("npm", ["run", "build"], {
+  execFileSync("node", ["scripts/build-pages.mjs"], {
     cwd: root,
     stdio: "inherit",
   });
@@ -26,7 +26,10 @@ async function main() {
     "dist/projects.html",
     "dist/assets.html",
     "dist/data/studio-data.json",
-    "dist/media/assets/dubai-booth-plan.png",
+    "dist/media/assets/dubai-2026-elevator/render-01.jpg",
+    "dist/media/assets/herb-expo/render-01.jpg",
+    "dist/media/assets/shuyong-showroom/render-01.jpg",
+    "dist/media/assets/mido-26-conant/render-01.jpg",
     "dist/开屏动画.html",
     "dist/sw.js",
     "dist/manifest.webmanifest",

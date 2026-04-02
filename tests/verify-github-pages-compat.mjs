@@ -31,6 +31,14 @@ async function main() {
       message: "Web app registration should use a relative service worker path.",
     },
     {
+      ok:
+        registerSource.includes("localhost") &&
+        registerSource.includes("127.0.0.1") &&
+        registerSource.includes("getRegistrations") &&
+        registerSource.includes("unregister"),
+      message: "Local preview should actively disable stale service workers on localhost.",
+    },
+    {
       ok: !serviceWorkerSource.includes('"/workspace.html"') && serviceWorkerSource.includes('new URL("./workspace.html"'),
       message: "sw.js should resolve navigation fallbacks from a relative base instead of the domain root.",
     },

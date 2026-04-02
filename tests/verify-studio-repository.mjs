@@ -44,12 +44,29 @@ async function main() {
     throw new Error("Studio snapshot should report sqlite as the active provider.");
   }
 
-  if (!Array.isArray(snapshot?.projects) || snapshot.projects.length < 4) {
+  if (!Array.isArray(snapshot?.projects) || snapshot.projects.length < 5) {
     throw new Error("Studio repository should expose the seeded projects.");
   }
 
-  if (!Array.isArray(snapshot?.assets) || snapshot.assets.length === 0) {
-    throw new Error("Studio repository should expose the seeded assets.");
+  if (!snapshot.projects.some((project) => project.id === "PRJ-005")) {
+    throw new Error("Studio repository should expose the MIDO batch-import project seed.");
+  }
+
+  if (!Array.isArray(snapshot?.assets) || snapshot.assets.length < 40) {
+    throw new Error("Studio repository should expose a substantial visual asset library.");
+  }
+
+  const groupedAsset = snapshot.assets.find((asset) => asset.projectId && asset.groupName && asset.actionLabel);
+  if (!groupedAsset) {
+    throw new Error("Studio repository should expose grouped project-linked assets with action labels.");
+  }
+
+  if (typeof groupedAsset.searchText !== "string" || !groupedAsset.searchText.trim()) {
+    throw new Error("Studio repository should expose hidden search text for each grouped asset.");
+  }
+
+  if (!groupedAsset.meta || !Array.isArray(groupedAsset.meta.keywords) || groupedAsset.meta.keywords.length === 0) {
+    throw new Error("Studio repository should expose hidden structured asset metadata.");
   }
 
   const overviewBoard = await repository.getBoard("overview");

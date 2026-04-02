@@ -56,8 +56,31 @@ async function main() {
       throw new Error("/api/studio-data should report sqlite as the active provider.");
     }
 
-    if (!Array.isArray(payload?.projects) || payload.projects.length < 4) {
+    if (!Array.isArray(payload?.projects) || payload.projects.length < 5) {
       throw new Error("/api/studio-data should return the seeded projects.");
+    }
+
+    if (!payload.projects.some((project) => project.id === "PRJ-005")) {
+      throw new Error("/api/studio-data should return the MIDO batch-import project seed.");
+    }
+
+    if (!Array.isArray(payload?.assets) || payload.assets.length < 40) {
+      throw new Error("/api/studio-data should return a substantial visual asset library.");
+    }
+
+    const groupedAsset = Array.isArray(payload?.assets)
+      ? payload.assets.find((asset) => asset.projectId && asset.groupName && asset.actionLabel)
+      : null;
+    if (!groupedAsset) {
+      throw new Error("/api/studio-data should return grouped project-linked assets.");
+    }
+
+    if (typeof groupedAsset.searchText !== "string" || !groupedAsset.searchText.trim()) {
+      throw new Error("/api/studio-data should return hidden search text for grouped assets.");
+    }
+
+    if (!groupedAsset.meta || !Array.isArray(groupedAsset.meta.keywords) || groupedAsset.meta.keywords.length === 0) {
+      throw new Error("/api/studio-data should return hidden structured asset metadata.");
     }
 
     if (!existsSync(DB_PATH)) {

@@ -91,6 +91,29 @@ const projects = [
       { name: "效果", role: "Render archive" },
     ],
   },
+  {
+    id: "PRJ-005",
+    name: "MIDO 26 - Conant",
+    client: "Conant",
+    budget: "档案未标注",
+    status: "Archived",
+    manager: "ZM",
+    year: "2026",
+    location: "档案未标注",
+    summary:
+      "Conant 展位项目档案，当前可确认的核心视觉资料为多组 T1 / T2 渲染图，适合作为视觉案例库使用。",
+    deliverables: [
+      "RENDERS 效果图",
+      "展位空间渲染",
+      "方案视角整理",
+      "展位概念呈现",
+    ],
+    website: "https://drive.google.com/drive/folders/1Iuf2J4Ud_m0xt5U9qxk3Fi2THbKt_yUH",
+    team: [
+      { name: "渲染", role: "T1 / T2 renders" },
+      { name: "空间", role: "Booth concept archive" },
+    ],
+  },
 ];
 
 const projectCanvasMap = {
@@ -306,12 +329,193 @@ const projectCanvasMap = {
       { from: "hero", to: "notes" },
     ],
   },
+  "PRJ-005": {
+    title: "MIDO 26 - Conant Canvas",
+    description: "围绕 Conant 展位渲染图整理出的视觉案例工作板。",
+    camera: { x: 112, y: 90, z: 0.88 },
+    nodes: [
+      {
+        id: "hero",
+        type: "project",
+        x: 170,
+        y: 130,
+        w: 450,
+        h: "auto",
+        title: "MIDO 26 - Conant",
+        desc: "以 T1 / T2 渲染图为主线整理出的展位视觉档案，重点是不同空间视角和 booth 方案呈现。",
+        tags: ["Renders", "Booth", "Concept"],
+      },
+      {
+        id: "sources",
+        type: "text",
+        x: 700,
+        y: 120,
+        w: 320,
+        h: "auto",
+        content:
+          "Archive Sources\n\n- RENDERS / T1.*.png\n- RENDERS / T2.*.png\n- 项目文件 / MIDO 26 - Conant",
+      },
+      {
+        id: "workflow",
+        type: "text",
+        x: 700,
+        y: 450,
+        w: 320,
+        h: "auto",
+        content:
+          "Working Set\n\n- 展位外部视角\n- 展位入口视角\n- 会客区与洽谈区\n- booth branding 变化",
+      },
+      {
+        id: "notes",
+        type: "text",
+        x: 170,
+        y: 500,
+        w: 350,
+        h: "auto",
+        content:
+          "Archive Notes\n\n当前档案最明确的是渲染成果，而地点、预算和更完整的项目背景没有直接标注，因此页面文案以视觉资料本身为准。",
+      },
+    ],
+    connections: [
+      { from: "hero", to: "sources" },
+      { from: "sources", to: "workflow" },
+      { from: "hero", to: "notes" },
+    ],
+  },
 };
 
 const projectsWithCanvas = projects.map((project) => ({
   ...project,
   canvas: projectCanvasMap[project.id],
 }));
+
+function padAssetNumber(value) {
+  return String(value).padStart(2, "0");
+}
+
+function createRenderSeries({
+  assetIdStart,
+  projectId,
+  titlePrefix,
+  groupName,
+  sourceLabelPrefix,
+  fileUrl,
+  basePath,
+  count,
+  featuredCount = 2,
+  searchText,
+  meta,
+}) {
+  return Array.from({ length: count }, (_, index) => {
+    const number = padAssetNumber(index + 1);
+    return {
+      id: `AST-${String(assetIdStart + index).padStart(3, "0")}`,
+      title: `${titlePrefix} ${number}`,
+      category: "Render",
+      format: "JPG",
+      size: "Archive preview",
+      url: `${basePath}/render-${number}.jpg`,
+      projectId,
+      groupName,
+      sourceLabel: `${sourceLabelPrefix} ${number}`,
+      fileUrl,
+      actionLabel: "Open render folder",
+      isFeatured: index < featuredCount,
+      searchText: `${searchText} render ${number} render-${number}`,
+      meta: {
+        ...meta,
+        keywords: [...meta.keywords, `render ${number}`, `render-${number}`],
+      },
+    };
+  });
+}
+
+const assets = [
+  ...createRenderSeries({
+    assetIdStart: 1,
+    projectId: "PRJ-001",
+    titlePrefix: "迪拜电梯展渲染",
+    groupName: "Effect renders",
+    sourceLabelPrefix: "Dubai effect render",
+    fileUrl: "https://drive.google.com/drive/folders/1Heac_86lSl8HjT5FL1rNveTjRKG4ZrF5",
+    basePath: "./media/assets/dubai-2026-elevator",
+    count: 10,
+    searchText:
+      "迪拜 电梯展 sword elevator expo booth exhibition stand render interior warm neutral signage hospitality counter",
+    meta: {
+      spaceType: "expo booth",
+      shotType: "render perspective",
+      viewAngle: "booth-wide perspective",
+      style: "trade show minimal",
+      colorMood: "warm neutral",
+      materials: ["lightbox", "painted wall", "metal", "screen"],
+      keywords: ["迪拜", "电梯展", "SWORD", "booth", "expo", "render", "展台"],
+    },
+  }),
+  ...createRenderSeries({
+    assetIdStart: 11,
+    projectId: "PRJ-003",
+    titlePrefix: "草药展 Enscape",
+    groupName: "Enscape renders",
+    sourceLabelPrefix: "Herb Enscape",
+    fileUrl: "https://drive.google.com/drive/folders/1ADL3V7dY7UbK2bWIhTfLtPS8QgwWc2QW",
+    basePath: "./media/assets/herb-expo",
+    count: 10,
+    searchText:
+      "草药展 herb expo enscape render green botanical wellness retail ingredients shelves certification booth interior",
+    meta: {
+      spaceType: "expo installation",
+      shotType: "interior render",
+      viewAngle: "corner perspective",
+      style: "organic exhibition",
+      colorMood: "green natural",
+      materials: ["graphic panel", "display shelf", "white laminate", "plant imagery"],
+      keywords: ["草药展", "herb", "Enscape", "render", "botanical", "绿色", "展览"],
+    },
+  }),
+  ...createRenderSeries({
+    assetIdStart: 21,
+    projectId: "PRJ-004",
+    titlePrefix: "舒勇 SHOW ROOM",
+    groupName: "Showroom renders",
+    sourceLabelPrefix: "Showroom render",
+    fileUrl: "https://drive.google.com/drive/folders/1isk1WrEeBLzjturYmMQWVr7YJaF33vwK",
+    basePath: "./media/assets/shuyong-showroom",
+    count: 10,
+    searchText:
+      "舒勇 showroom render gallery exhibition interior product display white grey minimal lighting perspective",
+    meta: {
+      spaceType: "showroom",
+      shotType: "detail render",
+      viewAngle: "interior perspective",
+      style: "gallery minimal",
+      colorMood: "soft neutral",
+      materials: ["painted wall", "display table", "track light", "acrylic"],
+      keywords: ["舒勇", "showroom", "gallery", "render", "interior", "展示空间"],
+    },
+  }),
+  ...createRenderSeries({
+    assetIdStart: 31,
+    projectId: "PRJ-005",
+    titlePrefix: "MIDO 26 - Conant",
+    groupName: "Render studies",
+    sourceLabelPrefix: "MIDO render",
+    fileUrl: "https://drive.google.com/drive/folders/1YXFJvppFoi22DyvrT7cBpifgRufvHrF_",
+    basePath: "./media/assets/mido-26-conant",
+    count: 10,
+    searchText:
+      "MIDO Conant render booth eyewear trade show pavilion meeting area hospitality corner neutral grey white perspective",
+    meta: {
+      spaceType: "expo booth",
+      shotType: "concept render",
+      viewAngle: "booth perspective",
+      style: "modular trade show",
+      colorMood: "neutral grey",
+      materials: ["lightbox", "aluminum frame", "graphic panel", "seating"],
+      keywords: ["MIDO", "Conant", "booth", "render", "trade show", "neutral", "展台"],
+    },
+  }),
+];
 
 const overviewNodes = [
   {
@@ -350,6 +554,7 @@ const overviewNodes = [
       { x: 1080, y: 150 },
       { x: 690, y: 470 },
       { x: 1180, y: 820 },
+      { x: 670, y: 860 },
     ];
     const position = positions[index] || { x: 700 + index * 120, y: 220 + index * 120 };
     return {
@@ -375,6 +580,7 @@ const overviewConnections = [
   { from: "overview-PRJ-001", to: "overview-PRJ-004" },
   { from: "overview-PRJ-002", to: "media" },
   { from: "overview-PRJ-003", to: "overview-PRJ-004" },
+  { from: "overview-PRJ-004", to: "overview-PRJ-005" },
 ];
 
 export const studioData = {
@@ -410,72 +616,5 @@ export const studioData = {
     },
   },
   projects: projectsWithCanvas,
-  assets: [
-    {
-      id: "AST-001",
-      title: "利雅得电梯展汇报方案",
-      category: "Proposal",
-      format: "PDF",
-      size: "77.4 MB",
-      url: "./media/assets/dubai-booth-plan.png",
-      projectId: "PRJ-001",
-      sourceLabel: "西奥-利雅得电梯展-汇报方案(0120).pdf",
-      fileUrl: "https://drive.google.com/file/d/14w9cDdnIUF7x6vK5veeAyVru_E30Gg8W/view?usp=drivesdk",
-    },
-    {
-      id: "AST-002",
-      title: "展品清单",
-      category: "Planning",
-      format: "XLSX",
-      size: "10.6 KB",
-      url: "./media/assets/dubai-elevator-reference.jpg",
-      projectId: "PRJ-001",
-      sourceLabel: "展品清单.xlsx",
-      fileUrl: "https://docs.google.com/spreadsheets/d/1RW_0Tpoia7q81-R52ddaxI18dzf4dMMN/edit?usp=drivesdk&ouid=100460926658982728360&rtpof=true&sd=true",
-    },
-    {
-      id: "AST-003",
-      title: "LiftExpoKZ 展位平面",
-      category: "Layout",
-      format: "PDF",
-      size: "604 KB",
-      url: "./media/assets/kz-config-compact.png",
-      projectId: "PRJ-002",
-      sourceLabel: "LiftExpoKZ-FLPLAN 2025.10.17.pdf",
-      fileUrl: "https://drive.google.com/file/d/1_UR8fwz3uEVheYrgCoXq-LncK-dDdD0y/view?usp=drivesdk",
-    },
-    {
-      id: "AST-004",
-      title: "哈萨克斯坦产品配置图",
-      category: "Planning",
-      format: "PNG",
-      size: "195.8 KB",
-      url: "./media/assets/kz-config-full.png",
-      projectId: "PRJ-002",
-      sourceLabel: "人机产品配置清单pics.png",
-      fileUrl: "https://drive.google.com/file/d/1YSL2IaLk_ghsUzdZ8lZzdWcfA_5J-duG/view?usp=drivesdk",
-    },
-    {
-      id: "AST-005",
-      title: "草药展第二版模型",
-      category: "3D",
-      format: "SKP",
-      size: "298 MB",
-      url: "./media/assets/herb-render.png",
-      projectId: "PRJ-003",
-      sourceLabel: "第二版.skp",
-      fileUrl: "https://drive.google.com/file/d/1-zeMxY8Rb3O78QW4gz6Nno1Zlzw9m9Gs/view?usp=drivesdk",
-    },
-    {
-      id: "AST-006",
-      title: "舒勇 SHOW ROOM 提案",
-      category: "Proposal",
-      format: "PDF",
-      size: "4.5 MB",
-      url: "./media/assets/showroom-render.png",
-      projectId: "PRJ-004",
-      sourceLabel: "方案1.pdf",
-      fileUrl: "https://drive.google.com/file/d/1xK1jtKX4nfImmYIbcTQm5lU9Uzas5hNg/view?usp=drivesdk",
-    },
-  ],
+  assets,
 };

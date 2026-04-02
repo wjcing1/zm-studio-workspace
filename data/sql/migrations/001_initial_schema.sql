@@ -67,8 +67,13 @@ CREATE TABLE IF NOT EXISTS assets (
   format TEXT NOT NULL DEFAULT '',
   size TEXT NOT NULL DEFAULT '',
   url TEXT NOT NULL DEFAULT '',
+  group_name TEXT NOT NULL DEFAULT '',
   source_label TEXT NOT NULL DEFAULT '',
   file_url TEXT NOT NULL DEFAULT '',
+  action_label TEXT NOT NULL DEFAULT '',
+  is_featured INTEGER NOT NULL DEFAULT 0,
+  search_text TEXT NOT NULL DEFAULT '',
+  meta_json TEXT NOT NULL DEFAULT '{}',
   sort_order INTEGER NOT NULL DEFAULT 0,
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
 );

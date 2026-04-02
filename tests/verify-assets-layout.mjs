@@ -4,7 +4,7 @@ import process from "node:process";
 const CODEX_HOME = process.env.CODEX_HOME || `${process.env.HOME}/.codex`;
 const PWCLI = `${CODEX_HOME}/skills/playwright/scripts/playwright_cli.sh`;
 const SESSION = `wal_${process.pid}_${Date.now().toString(36)}_${Math.floor(Math.random() * 1000)}`;
-const PAGE_URL = "http://127.0.0.1:4173/assets.html?codex-test-auth=1";
+const PAGE_URL = process.env.ASSETS_TEST_PAGE_URL || "http://127.0.0.1:4173/assets.html?codex-test-auth=1";
 const MIN_CARD_HEIGHT = 160;
 
 function runPw(args) {

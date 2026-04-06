@@ -55,6 +55,88 @@ import { setupWebApp } from "./shared/register-web-app.js?v=2026-03-30-auth-1";
 
 setupWebApp();
 
+const APP_CSS_ID = "workspace-app-css";
+const APP_CSS_URL = "./scripts/generated/workspace/workspace-app.css";
+const APP_MODULE_URL = "./generated/workspace/workspace-app.js";
+const WORKSPACE_ENGINE_MODE = new URL(window.location.href).searchParams.get("workspace-engine") || "compat";
+const IS_TLDRAW_PRIMARY_MODE = WORKSPACE_ENGINE_MODE === "tldraw";
+
+window.__workspaceApp = {
+  engine: "tldraw",
+  ready: false,
+  status: "booting",
+  currentToolId: "select",
+  pageSelectedNodeIds: [],
+  pageSelectedEdgeIds: [],
+};
+
+function ensureWorkspaceAppCss() {
+  if (document.getElementById(APP_CSS_ID)) return;
+
+  const link = document.createElement("link");
+  link.id = APP_CSS_ID;
+  link.rel = "stylesheet";
+  link.href = APP_CSS_URL;
+  document.head.appendChild(link);
+}
+
+async function mountWorkspaceEngine() {
+  const root = document.getElementById("workspaceCanvasApp");
+  if (!root) return;
+
+  if (typeof globalThis.process !== "object") {
+    globalThis.process = {
+      env: {
+        NODE_ENV: "production",
+        TLDRAW_ENV: "production",
+        VITE_TLDRAW_LICENSE_KEY: "",
+      },
+      emit() {},
+    };
+  } else {
+    globalThis.process.env = {
+      NODE_ENV: "production",
+      TLDRAW_ENV: "production",
+      VITE_TLDRAW_LICENSE_KEY: "",
+      ...globalThis.process.env,
+    };
+    if (typeof globalThis.process.emit !== "function") {
+      globalThis.process.emit = () => {};
+    }
+  }
+
+  ensureWorkspaceAppCss();
+  const module = await import(APP_MODULE_URL);
+  if (typeof module.mountWorkspaceApp !== "function") {
+    throw new Error("Workspace app bundle does not export mountWorkspaceApp().");
+  }
+
+  window.__workspaceApp = {
+    engine: "tldraw",
+    ready: false,
+    status: "mounting",
+    currentToolId: window.__workspaceApp?.currentToolId || "select",
+    pageSelectedNodeIds: window.__workspaceApp?.pageSelectedNodeIds || [],
+    pageSelectedEdgeIds: window.__workspaceApp?.pageSelectedEdgeIds || [],
+  };
+
+  module.mountWorkspaceApp({ root });
+}
+
+function createWorkspaceBridgePayload(board) {
+  if (!board) return null;
+
+  return {
+    key: board.key,
+    title: board.title || "Workspace",
+    description: board.description || "",
+    camera: cloneValue(board.camera),
+    defaultCamera: cloneValue(board.defaultCamera || board.camera),
+    nodes: cloneValue(board.nodes),
+    edges: cloneValue(board.edges),
+  };
+}
+
 const WORKSPACE_STATIC_AI_HINT =
   "Workspace AI requires a server backend. GitHub Pages serves the static canvas only.";
 const WORKSPACE_STATIC_AI_RECOVERY =
@@ -144,6 +226,7 @@ const canvasViewport = document.getElementById("canvasViewport");
 const canvasGrid = document.getElementById("canvasGrid");
 const canvasConnections = document.getElementById("canvasConnections");
 const canvasStage = document.getElementById("canvasStage");
+const workspaceCanvasApp = document.getElementById("workspaceCanvasApp");
 const collaborationPresenceLayer = document.getElementById("collaborationPresenceLayer");
 const canvasBreadcrumb = document.getElementById("canvasBreadcrumb");
 const canvasContextKicker = document.getElementById("canvasContextKicker");
@@ -178,6 +261,7 @@ const addTextNodeBtn = document.getElementById("addTextNodeBtn");
 const addFileNodeBtn = document.getElementById("addFileNodeBtn");
 const addLinkNodeBtn = document.getElementById("addLinkNodeBtn");
 const addGroupNodeBtn = document.getElementById("addGroupNodeBtn");
+const connectNodesBtn = document.getElementById("connectNodesBtn");
 const undoCanvasBtn = document.getElementById("undoCanvasBtn");
 const redoCanvasBtn = document.getElementById("redoCanvasBtn");
 const canvasImportBtn = document.getElementById("canvasImportBtn");
@@ -185,6 +269,58 @@ const canvasExportBtn = document.getElementById("canvasExportBtn");
 const TEXT_NODE_MIN_TEXTAREA_HEIGHT = 148;
 const TEXT_NODE_MIN_FRAME_HEIGHT = 170;
 const TEXT_NODE_CHROME_HEIGHT = 22;
+let suppressNextWorkspaceAppSync = false;
+const transientCanvasToolState = {
+  spaceHandActive: false,
+  restoreToolId: "select",
+};
+
+canvasViewport?.classList.toggle("is-tldraw-primary", IS_TLDRAW_PRIMARY_MODE);
+
+function syncWorkspaceApp(board = getActiveBoard()) {
+  if (suppressNextWorkspaceAppSync) {
+    suppressNextWorkspaceAppSync = false;
+    return;
+  }
+
+  const payload = createWorkspaceBridgePayload(board);
+  window.__workspaceBoardState = payload;
+
+  if (payload && window.__workspaceAppBridge?.setBoardPayload) {
+    window.__workspaceAppBridge.setBoardPayload(payload);
+  }
+}
+
+function updateCanvasToolbarToolState(toolId = window.__workspaceApp?.currentToolId || "select") {
+  if (!connectNodesBtn) return;
+
+  const isConnectActive = toolId === "arrow";
+  connectNodesBtn.classList.toggle("is-active", isConnectActive);
+  connectNodesBtn.setAttribute("aria-pressed", String(isConnectActive));
+}
+
+function beginTemporaryHandTool() {
+  if (!IS_TLDRAW_PRIMARY_MODE || !window.__workspaceAppBridge?.setTool) return false;
+  if (transientCanvasToolState.spaceHandActive) return true;
+
+  transientCanvasToolState.spaceHandActive = true;
+  transientCanvasToolState.restoreToolId = window.__workspaceApp?.currentToolId || "select";
+  window.__workspaceAppBridge.setTool("hand");
+  return true;
+}
+
+function endTemporaryHandTool() {
+  if (!transientCanvasToolState.spaceHandActive || !window.__workspaceAppBridge?.setTool) return;
+
+  const restoreToolId =
+    transientCanvasToolState.restoreToolId && transientCanvasToolState.restoreToolId !== "hand"
+      ? transientCanvasToolState.restoreToolId
+      : "select";
+
+  transientCanvasToolState.spaceHandActive = false;
+  transientCanvasToolState.restoreToolId = "select";
+  window.__workspaceAppBridge.setTool(restoreToolId);
+}
 
 function createLocalCollaborator() {
   const palette = ["#6ee7b7", "#60a5fa", "#f97316", "#facc15", "#f472b6", "#22d3ee"];
@@ -281,6 +417,13 @@ function currentEditingPresence() {
     return {
       nodeId: activeElement.dataset.nodeId,
       field: activeElement.dataset.groupField || "",
+    };
+  }
+
+  if (activeElement?.matches?.("[data-file-field]")) {
+    return {
+      nodeId: activeElement.dataset.nodeId,
+      field: activeElement.dataset.fileField || "",
     };
   }
 
@@ -668,6 +811,10 @@ function setSelectedNodes(nodeIds, options = {}) {
     },
   });
 
+  if (IS_TLDRAW_PRIMARY_MODE && options.syncAppSelection !== false) {
+    window.__workspaceAppBridge?.selectNodeIds?.(state.selection.nodeIds);
+  }
+
   if (options.render !== false) {
     renderCanvas();
   }
@@ -694,6 +841,10 @@ function clearSelection(options = {}) {
       nodeIds: [],
     },
   });
+
+  if (IS_TLDRAW_PRIMARY_MODE && options.syncAppSelection !== false) {
+    window.__workspaceAppBridge?.selectNodeIds?.([]);
+  }
   renderCanvas();
 }
 
@@ -705,6 +856,10 @@ function selectEdge(edgeId) {
       nodeIds: [],
     },
   });
+
+  if (IS_TLDRAW_PRIMARY_MODE) {
+    window.__workspaceAppBridge?.selectNodeIds?.([]);
+  }
   renderCanvas();
 }
 
@@ -1171,6 +1326,7 @@ function renderCanvas() {
   renderCollaborationPresence(board);
   renderAssistantContext();
   flushPendingEditorFocus();
+  syncWorkspaceApp(board);
 }
 
 function renderMarqueeSelection() {
@@ -1558,6 +1714,14 @@ function createNodeAtPointer(type) {
 }
 
 function addNode(type) {
+  if (IS_TLDRAW_PRIMARY_MODE && window.__workspaceAppBridge?.addNode) {
+    window.__workspaceAppBridge.addNode(type, {
+      x: state.pointer.worldX || 180,
+      y: state.pointer.worldY || 180,
+    });
+    return;
+  }
+
   const board = getActiveBoard();
   pushBoardHistory(board);
 
@@ -2012,6 +2176,11 @@ async function handleCanvasFiles(files, options = {}) {
   }
 }
 
+function getCanvasViewportCenterWorldPoint() {
+  const rect = canvasViewport.getBoundingClientRect();
+  return pointerToWorld(rect.left + rect.width * 0.5, rect.top + rect.height * 0.5);
+}
+
 function triggerExport() {
   const board = getActiveBoard();
   const payload = exportBoardToJsonCanvas(board);
@@ -2060,7 +2229,22 @@ addGroupNodeBtn?.addEventListener("click", () => {
   addNode("group");
 });
 
+connectNodesBtn?.addEventListener("click", () => {
+  if (!IS_TLDRAW_PRIMARY_MODE || !window.__workspaceAppBridge?.setTool) return;
+
+  const currentToolId = window.__workspaceApp?.currentToolId || "select";
+  const nextToolId = currentToolId === "arrow" ? "select" : "arrow";
+  transientCanvasToolState.spaceHandActive = false;
+  transientCanvasToolState.restoreToolId = "select";
+  window.__workspaceAppBridge.setTool(nextToolId);
+});
+
 undoCanvasBtn?.addEventListener("click", () => {
+  if (IS_TLDRAW_PRIMARY_MODE && window.__workspaceAppBridge?.undo) {
+    window.__workspaceAppBridge.undo();
+    return;
+  }
+
   if (undoBoard(getActiveBoard())) {
     persistActiveBoard();
     renderCanvas();
@@ -2068,6 +2252,11 @@ undoCanvasBtn?.addEventListener("click", () => {
 });
 
 redoCanvasBtn?.addEventListener("click", () => {
+  if (IS_TLDRAW_PRIMARY_MODE && window.__workspaceAppBridge?.redo) {
+    window.__workspaceAppBridge.redo();
+    return;
+  }
+
   if (redoBoard(getActiveBoard())) {
     persistActiveBoard();
     renderCanvas();
@@ -2127,6 +2316,11 @@ assistantComposer?.addEventListener("submit", (event) => {
 });
 
 canvasViewport.addEventListener("pointermove", (event) => {
+  if (IS_TLDRAW_PRIMARY_MODE) {
+    syncPointer(event.clientX, event.clientY, event.target);
+    return;
+  }
+
   if (event.pointerType === "touch") {
     setTouchPoint(event.pointerId, event.clientX, event.clientY);
   }
@@ -2247,6 +2441,11 @@ canvasViewport.addEventListener("pointermove", (event) => {
 });
 
 canvasViewport.addEventListener("pointerdown", (event) => {
+  if (IS_TLDRAW_PRIMARY_MODE) {
+    syncPointer(event.clientX, event.clientY, event.target);
+    return;
+  }
+
   syncPointer(event.clientX, event.clientY, event.target);
 
   if (event.target.closest(".canvas-context-shell")) return;
@@ -2396,6 +2595,10 @@ canvasViewport.addEventListener("pointerdown", (event) => {
 });
 
 canvasViewport.addEventListener("pointerup", (event) => {
+  if (IS_TLDRAW_PRIMARY_MODE) {
+    return;
+  }
+
   if (event.pointerType === "touch") {
     removeTouchPoint(event.pointerId);
     releaseCanvasPointerCapture(event.pointerId);
@@ -2444,6 +2647,10 @@ canvasViewport.addEventListener("pointerup", (event) => {
 });
 
 canvasViewport.addEventListener("pointercancel", (event) => {
+  if (IS_TLDRAW_PRIMARY_MODE) {
+    return;
+  }
+
   if (event.pointerType === "touch") {
     removeTouchPoint(event.pointerId);
     releaseCanvasPointerCapture(event.pointerId);
@@ -2461,6 +2668,13 @@ canvasViewport.addEventListener("pointercancel", (event) => {
 });
 
 canvasViewport.addEventListener("pointerleave", (event) => {
+  if (IS_TLDRAW_PRIMARY_MODE) {
+    scheduleLocalPresenceSync({
+      cursor: null,
+    });
+    return;
+  }
+
   scheduleLocalPresenceSync({
     cursor: null,
   });
@@ -2472,6 +2686,10 @@ canvasViewport.addEventListener("pointerleave", (event) => {
 canvasViewport.addEventListener(
   "wheel",
   (event) => {
+    if (IS_TLDRAW_PRIMARY_MODE) {
+      return;
+    }
+
     event.preventDefault();
     syncPointer(event.clientX, event.clientY, event.target);
 
@@ -2569,17 +2787,21 @@ canvasConnections.addEventListener("click", (event) => {
   renderCanvas();
 });
 
-canvasStage.addEventListener("focusin", (event) => {
-  if (!event.target.matches("[data-text-node], [data-link-field], [data-group-field]")) return;
+function isInlineEditorTarget(target) {
+  return Boolean(target?.matches?.("[data-text-node], [data-link-field], [data-group-field], [data-file-field]"));
+}
+
+function handleInlineEditorFocusIn(event) {
+  if (!isInlineEditorTarget(event.target)) return;
   state.editing.snapshot = createBoardSnapshot(getActiveBoard());
   state.editing.dirty = false;
   scheduleLocalPresenceSync({
     editing: currentEditingPresence(),
   });
-});
+}
 
-canvasStage.addEventListener("focusout", (event) => {
-  if (!event.target.matches("[data-text-node], [data-link-field], [data-group-field]")) return;
+function handleInlineEditorFocusOut(event) {
+  if (!isInlineEditorTarget(event.target)) return;
   if (state.editing.snapshot && state.editing.dirty) {
     pushBoardHistory(getActiveBoard(), state.editing.snapshot);
     persistActiveBoard();
@@ -2589,9 +2811,19 @@ canvasStage.addEventListener("focusout", (event) => {
   scheduleLocalPresenceSync({
     editing: null,
   });
-});
+}
 
-canvasStage.addEventListener("input", (event) => {
+function handleInlineEditorInput(event) {
+  if (!isInlineEditorTarget(event.target)) return;
+
+  if (IS_TLDRAW_PRIMARY_MODE && event.currentTarget === workspaceCanvasApp) {
+    state.editing.dirty = true;
+    scheduleLocalPresenceSync({
+      editing: currentEditingPresence(),
+    });
+    return;
+  }
+
   const board = getActiveBoard();
   const nodeId = event.target.dataset.nodeId || event.target.dataset.textNode;
   const node = board.nodes.find((item) => item.id === nodeId);
@@ -2615,14 +2847,30 @@ canvasStage.addEventListener("input", (event) => {
     node.label = event.target.value;
   }
 
+  if (event.target.matches("[data-file-field='title']")) {
+    node.title = event.target.value;
+  }
+
   state.editing.dirty = true;
   scheduleLocalPresenceSync({
     editing: currentEditingPresence(),
   });
   persistActiveBoard();
-});
+}
+
+for (const root of [canvasStage, workspaceCanvasApp]) {
+  if (!root) continue;
+  root.addEventListener("focusin", handleInlineEditorFocusIn);
+  root.addEventListener("focusout", handleInlineEditorFocusOut);
+  root.addEventListener("input", handleInlineEditorInput);
+}
 
 resetViewBtn?.addEventListener("click", () => {
+  if (IS_TLDRAW_PRIMARY_MODE && window.__workspaceAppBridge?.resetView) {
+    window.__workspaceAppBridge.resetView();
+    return;
+  }
+
   resetView();
 });
 
@@ -2643,6 +2891,71 @@ window.addEventListener("keydown", (event) => {
   const target = document.activeElement;
   const isTypingTarget = target?.matches?.("textarea, input");
   const isSpaceShortcut = event.code === "Space" || event.key === " " || event.key === "Spacebar";
+  const isToolShortcut = event.code === "KeyC" || event.code === "KeyH" || event.code === "KeyV";
+
+  if (IS_TLDRAW_PRIMARY_MODE) {
+    if (isTypingTarget) {
+      return;
+    }
+
+    if (isSpaceShortcut) {
+      event.preventDefault();
+      if (!event.repeat) {
+        beginTemporaryHandTool();
+      }
+      return;
+    }
+
+    if (!event.metaKey && !event.ctrlKey && !event.altKey && window.__workspaceAppBridge?.setTool && isToolShortcut) {
+      event.preventDefault();
+      transientCanvasToolState.spaceHandActive = false;
+      transientCanvasToolState.restoreToolId = "select";
+
+      if (event.code === "KeyC") {
+        window.__workspaceAppBridge.setTool("arrow");
+        return;
+      }
+
+      if (event.code === "KeyH") {
+        window.__workspaceAppBridge.setTool("hand");
+        return;
+      }
+
+      if (event.code === "KeyV") {
+        window.__workspaceAppBridge.setTool("select");
+        return;
+      }
+    }
+
+    if ((event.metaKey || event.ctrlKey) && !event.altKey) {
+      const loweredKey = event.key.toLowerCase();
+
+      if (loweredKey === "c") {
+        event.preventDefault();
+        void window.__workspaceAppBridge?.copySelectionToClipboard?.();
+        return;
+      }
+
+      if (loweredKey === "x") {
+        event.preventDefault();
+        void window.__workspaceAppBridge?.cutSelectionToClipboard?.();
+        return;
+      }
+
+      if (loweredKey === "v") {
+        event.preventDefault();
+        void window.__workspaceAppBridge?.pasteFromClipboard?.();
+        return;
+      }
+    }
+
+    if (event.key === "Escape" && state.ui.isAssistantOpen) {
+      closeAssistantPanel();
+      return;
+    }
+
+    return;
+  }
 
   if (isSpaceShortcut && shouldOpenAssistantFromSpace(event, target)) {
     event.preventDefault();
@@ -2709,8 +3022,116 @@ window.addEventListener("keydown", (event) => {
   }
 });
 
+window.addEventListener("keyup", (event) => {
+  if (!IS_TLDRAW_PRIMARY_MODE) return;
+
+  const isSpaceShortcut = event.code === "Space" || event.key === " " || event.key === "Spacebar";
+  if (!isSpaceShortcut) return;
+
+  event.preventDefault();
+  endTemporaryHandTool();
+});
+
+window.addEventListener("blur", () => {
+  endTemporaryHandTool();
+});
+
+window.addEventListener("workspace-app:board-change", (event) => {
+  if (!IS_TLDRAW_PRIMARY_MODE) return;
+
+  const nextBoard = event?.detail?.board;
+  const board = getActiveBoard();
+  if (!board || !nextBoard || nextBoard.key !== board.key) {
+    return;
+  }
+
+  const currentPayload = createWorkspaceBridgePayload(board);
+  if (JSON.stringify(currentPayload) === JSON.stringify(nextBoard)) {
+    return;
+  }
+
+  board.camera = cloneValue(nextBoard.camera || board.camera);
+  board.nodes = cloneValue(nextBoard.nodes || board.nodes);
+  board.edges = cloneValue(nextBoard.edges || board.edges);
+  persistActiveBoard();
+  window.__workspaceBoardState = createWorkspaceBridgePayload(board);
+  suppressNextWorkspaceAppSync = true;
+  renderCanvas();
+});
+
+window.addEventListener("workspace-app:selection-change", (event) => {
+  if (!IS_TLDRAW_PRIMARY_MODE) return;
+
+  const nodeIds = uniqueIds(Array.isArray(event?.detail?.nodeIds) ? event.detail.nodeIds : []);
+  const edgeIds = uniqueIds(Array.isArray(event?.detail?.edgeIds) ? event.detail.edgeIds : []);
+  const nextSelectedEdgeId = edgeIds[0] || null;
+
+  if (
+    JSON.stringify(nodeIds) === JSON.stringify(state.selection.nodeIds) &&
+    nextSelectedEdgeId === state.ui.selectedEdgeId
+  ) {
+    window.__workspaceApp = {
+      ...(window.__workspaceApp || {}),
+      pageSelectedNodeIds: nodeIds,
+      pageSelectedEdgeIds: edgeIds,
+    };
+    return;
+  }
+
+  state.selection.nodeIds = nodeIds;
+  state.ui.selectedEdgeId = nextSelectedEdgeId;
+  scheduleLocalPresenceSync({
+    selection: {
+      nodeIds,
+    },
+  });
+  window.__workspaceApp = {
+    ...(window.__workspaceApp || {}),
+    pageSelectedNodeIds: nodeIds,
+    pageSelectedEdgeIds: edgeIds,
+  };
+
+  if (state.ui.isAssistantOpen) {
+    renderAssistantThread();
+  }
+});
+
+window.addEventListener("workspace-app:state-change", (event) => {
+  const toolId = event?.detail?.currentToolId || "select";
+  updateCanvasToolbarToolState(toolId);
+
+  if (IS_TLDRAW_PRIMARY_MODE && toolId !== "select") {
+    collapseCanvasContext();
+  }
+});
+
+window.addEventListener("workspace-app:file-paste", async (event) => {
+  if (!IS_TLDRAW_PRIMARY_MODE) return;
+
+  const files = Array.isArray(event?.detail?.files) ? event.detail.files.filter(Boolean) : [];
+  if (files.length === 0) return;
+
+  await handleCanvasFiles(files, {
+    worldPoint: getCanvasViewportCenterWorldPoint(),
+  });
+});
+
 window.addEventListener("beforeunload", () => {
   destroyActiveCollaborationSession("idle");
+});
+
+mountWorkspaceEngine().catch((error) => {
+  window.__workspaceApp = {
+    engine: "tldraw",
+    ready: false,
+    status: "error",
+    error: error instanceof Error ? error.message : "Unable to mount Workspace app.",
+    currentToolId: "select",
+    pageSelectedNodeIds: window.__workspaceApp?.pageSelectedNodeIds || [],
+    pageSelectedEdgeIds: window.__workspaceApp?.pageSelectedEdgeIds || [],
+  };
+  updateCanvasToolbarToolState("select");
+  console.error(error instanceof Error ? error.message : "Unable to mount Workspace app.");
 });
 
 applyInitialRoute();
@@ -2719,3 +3140,4 @@ renderAssistantThread();
 renderCollaborationStatus();
 renderCanvas();
 syncBoardFromCloud(getActiveBoard());
+updateCanvasToolbarToolState();

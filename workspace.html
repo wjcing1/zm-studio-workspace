@@ -97,6 +97,7 @@
                 <button class="canvas-tool-btn" id="addFileNodeBtn" type="button">File</button>
                 <button class="canvas-tool-btn" id="addLinkNodeBtn" type="button">Link</button>
                 <button class="canvas-tool-btn" id="addGroupNodeBtn" type="button">Group</button>
+                <button class="canvas-tool-btn" id="connectNodesBtn" type="button" aria-pressed="false">Connect</button>
                 <button class="canvas-tool-btn" id="undoCanvasBtn" type="button">Undo</button>
                 <button class="canvas-tool-btn" id="redoCanvasBtn" type="button">Redo</button>
                 <button class="canvas-tool-btn" id="canvasImportBtn" type="button">Import</button>
@@ -104,6 +105,7 @@
               </div>
             </div>
             <div class="canvas-grid" id="canvasGrid"></div>
+            <div class="workspace-canvas-app" id="workspaceCanvasApp" data-workspace-engine="legacy-shell"></div>
             <svg class="canvas-connections" id="canvasConnections" aria-hidden="true"></svg>
             <div class="canvas-stage" id="canvasStage"></div>
             <div class="collaboration-presence-layer" id="collaborationPresenceLayer" aria-hidden="true"></div>

@@ -8,6 +8,7 @@ import { createBoardStore } from "./board-store.mjs";
 import { getCollaborationConfig } from "./collaboration-config.mjs";
 import { createMemoryStore } from "./memory-store.mjs";
 import { createRealtimeCollaborationServer } from "./realtime-collaboration-server.mjs";
+import { ensureWorkspaceAppBuild } from "./scripts/build-workspace-app.mjs";
 import { createStudioRepository } from "./studio-repository.mjs";
 import {
   buildMemoryLookupQuery,
@@ -48,6 +49,7 @@ function loadDotEnv() {
 }
 
 loadDotEnv();
+await ensureWorkspaceAppBuild();
 
 function parseJsonEnv(value, fallback) {
   if (!value) return fallback;

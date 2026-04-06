@@ -11,13 +11,33 @@ const checks = [
   ["node", ["tests/verify-encoded-splash-route.mjs"]],
   ["node", ["tests/verify-222.mjs"]],
   ["node", ["tests/verify-workspace-page.mjs"]],
+  ["node", ["tests/verify-workspace-compat-hides-tldraw-layer.mjs"]],
   ["node", ["tests/verify-web-app-shell.mjs"]],
   ["node", ["tests/verify-web-app-cache-refresh.mjs"]],
   ["node", ["tests/verify-project-canvas-ui.mjs"]],
   ["node", ["tests/verify-projects-ai-ui.mjs"]],
   ["node", ["tests/verify-projects-ai-scroll.mjs"]],
   ["node", ["tests/verify-workspace-board-model.mjs"]],
+  ["node", ["tests/verify-workspace-tldraw-adapter.mjs"]],
   ["node", ["tests/verify-workspace-copilot-ui.mjs"]],
+  ["node", ["tests/verify-workspace-tldraw-runtime.mjs"]],
+  ["node", ["tests/verify-workspace-tldraw-board-sync.mjs"]],
+  ["node", ["tests/verify-workspace-tldraw-edge-sync.mjs"]],
+  ["node", ["tests/verify-workspace-tldraw-edge-create.mjs"]],
+  ["node", ["tests/verify-workspace-tldraw-tool-bridge.mjs"]],
+  ["node", ["tests/verify-workspace-tldraw-tool-shortcuts.mjs"]],
+  ["node", ["tests/verify-workspace-tldraw-copy-paste.mjs"]],
+  ["node", ["tests/verify-workspace-tldraw-real-shortcut-copy.mjs"]],
+  ["node", ["tests/verify-workspace-tldraw-real-shortcut-paste.mjs"]],
+  ["node", ["tests/verify-workspace-tldraw-system-paste-text.mjs"]],
+  ["node", ["tests/verify-workspace-tldraw-system-paste-file.mjs"]],
+  ["node", ["tests/verify-workspace-tldraw-connect-tool-create.mjs"]],
+  ["node", ["tests/verify-workspace-tldraw-tool-collapses-context.mjs"]],
+  ["node", ["tests/verify-workspace-tldraw-selection-sync.mjs"]],
+  ["node", ["tests/verify-workspace-tldraw-toolbar-create.mjs"]],
+  ["node", ["tests/verify-workspace-tldraw-text-edit.mjs"]],
+  ["node", ["tests/verify-workspace-tldraw-inline-fields.mjs"]],
+  ["node", ["tests/verify-workspace-tldraw-file-node-ui.mjs"]],
   ["node", ["tests/verify-workspace-pan-drag.mjs"]],
   ["node", ["tests/verify-workspace-ai-shortcut.mjs"]],
   ["node", ["tests/verify-workspace-ai-streaming.mjs"]],
@@ -67,6 +87,10 @@ async function waitForServer(url, attempts = 30) {
 }
 
 async function main() {
+  runCheck("npm", ["run", "build:workspace"]);
+  runCheck("node", ["tests/reset-workspace-overview.mjs"]);
+  runCheck("node", ["tests/reset-workspace-project-prj002.mjs"]);
+
   for (const [command, args] of checks) {
     runCheck(command, args);
   }

@@ -72,16 +72,19 @@ async function main() {
           const viewport = document.getElementById("canvasViewport");
           const stage = document.getElementById("canvasStage");
           const marquee = document.getElementById("marqueeSelection");
-          const introNode = stage.querySelector('.canvas-node[data-id="intro"]');
-          const introRect = introNode.getBoundingClientRect();
+          const targetNode = stage.querySelector(".canvas-node");
+          if (!targetNode) {
+            return { ok: false, reason: "no-canvas-node" };
+          }
+          const targetRect = targetNode.getBoundingClientRect();
           const before = stage.style.transform;
           const start = {
-            x: Math.max(introRect.left - 60, viewport.getBoundingClientRect().left + 20),
-            y: Math.max(introRect.top - 50, viewport.getBoundingClientRect().top + 20),
+            x: Math.max(targetRect.left - 60, viewport.getBoundingClientRect().left + 20),
+            y: Math.max(targetRect.top - 50, viewport.getBoundingClientRect().top + 20),
           };
           const end = {
-            x: Math.min(introRect.right + 16, viewport.getBoundingClientRect().right - 20),
-            y: Math.min(introRect.bottom + 16, viewport.getBoundingClientRect().bottom - 20),
+            x: Math.min(targetRect.right + 16, viewport.getBoundingClientRect().right - 20),
+            y: Math.min(targetRect.bottom + 16, viewport.getBoundingClientRect().bottom - 20),
           };
 
           function fire(type, x, y, buttons) {
@@ -112,15 +115,21 @@ async function main() {
           await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
           return {
+            ok: true,
             before,
             after: stage.style.transform,
             changed: before !== stage.style.transform,
             marqueeWhileDragging,
+            targetId: targetNode.dataset.id || null,
             selectedIds: [...stage.querySelectorAll(".canvas-node.is-selected")].map((node) => node.dataset.id),
           };
         }`,
       ]),
     );
+
+    if (!result.ok) {
+      throw new Error(`Pan-drag probe failed: ${result.reason || "unknown reason"}`);
+    }
 
     if (result.changed) {
       throw new Error(
@@ -132,8 +141,10 @@ async function main() {
       throw new Error("Dragging a blank area should show the marquee selection box while selecting.");
     }
 
-    if (!result.selectedIds.includes("intro")) {
-      throw new Error(`Dragging a blank area across the intro node should select it. Selected: ${result.selectedIds.join(", ")}`);
+    if (!result.targetId || !result.selectedIds.includes(result.targetId)) {
+      throw new Error(
+        `Dragging a blank area across a visible node should select it. Target: ${result.targetId || "<none>"} Selected: ${result.selectedIds.join(", ")}`,
+      );
     }
 
     console.log("PASS: dragging a blank canvas area creates a marquee selection.");

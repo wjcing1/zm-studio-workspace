@@ -121,12 +121,13 @@ async function main() {
     }
 
     const interaction = evalJson(`async () => {
-      const textarea = document.querySelector('.canvas-textarea[data-text-node="intro"]');
+      const textarea = document.querySelector(".canvas-textarea[data-text-node]");
       const viewport = document.getElementById("canvasViewport");
       if (!textarea || !viewport) {
         return { ok: false, reason: "missing-canvas-target" };
       }
 
+      const targetId = textarea.dataset.textNode || null;
       const rect = textarea.getBoundingClientRect();
       const clientX = rect.left + 24;
       const clientY = rect.top + 24;
@@ -163,6 +164,7 @@ async function main() {
 
       return {
         ok: true,
+        targetId,
         selectedNodeId: document.querySelector(".canvas-node.is-selected")?.dataset?.id || null,
         focused: document.activeElement === textarea,
       };
@@ -173,17 +175,18 @@ async function main() {
     }
 
     if (!interaction.focused) {
-      throw new Error("The collaborator tab should focus the intro text node before presence is checked.");
+      throw new Error("The collaborator tab should focus a text node before presence is checked.");
     }
 
     const presence = evalJson(`async () => {
       const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const targetId = ${JSON.stringify(interaction.targetId)};
 
       for (let index = 0; index < 40; index += 1) {
         const result = {
           cursorCount: document.querySelectorAll(".collaboration-cursor").length,
-          selectionCount: document.querySelectorAll('.collaboration-selection[data-node-id="intro"]').length,
-          editingCount: document.querySelectorAll('.collaboration-editing-badge[data-node-id="intro"]').length,
+          selectionCount: document.querySelectorAll(\`.collaboration-selection[data-node-id="\${targetId}"]\`).length,
+          editingCount: document.querySelectorAll(\`.collaboration-editing-badge[data-node-id="\${targetId}"]\`).length,
           remotePeerCount: window.__workspaceCollaboration?.remotePeerCount || 0,
         };
 
@@ -196,8 +199,8 @@ async function main() {
 
       return {
         cursorCount: document.querySelectorAll(".collaboration-cursor").length,
-        selectionCount: document.querySelectorAll('.collaboration-selection[data-node-id="intro"]').length,
-        editingCount: document.querySelectorAll('.collaboration-editing-badge[data-node-id="intro"]').length,
+        selectionCount: document.querySelectorAll(\`.collaboration-selection[data-node-id="\${targetId}"]\`).length,
+        editingCount: document.querySelectorAll(\`.collaboration-editing-badge[data-node-id="\${targetId}"]\`).length,
         remotePeerCount: window.__workspaceCollaboration?.remotePeerCount || 0,
       };
     }`).in(SESSION_A);

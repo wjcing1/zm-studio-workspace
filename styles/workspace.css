@@ -29,6 +29,32 @@ body[data-page="zm-workspace"] {
   background-position: 0 0;
 }
 
+.workspace-canvas-app {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.canvas-viewport:not(.is-tldraw-primary) .workspace-canvas-app {
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.canvas-viewport.is-tldraw-primary .workspace-canvas-app {
+  z-index: 5;
+  pointer-events: auto;
+  opacity: 1;
+  visibility: visible;
+}
+
+.canvas-viewport.is-tldraw-primary .canvas-stage,
+.canvas-viewport.is-tldraw-primary .canvas-connections,
+.canvas-viewport.is-tldraw-primary .marquee-selection {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .canvas-overlay {
   position: absolute;
   top: 106px;
@@ -106,6 +132,13 @@ body[data-page="zm-workspace"] {
   background: rgba(255, 255, 255, 0.92);
   color: #050505;
   outline: none;
+}
+
+.canvas-tool-btn.is-active,
+.canvas-tool-btn[aria-pressed="true"] {
+  background: rgba(255, 255, 255, 0.92);
+  color: #050505;
+  box-shadow: 0 0 0 1px rgba(5, 5, 5, 0.08);
 }
 
 .canvas-context-toggle-icon {
@@ -214,6 +247,7 @@ body[data-page="zm-workspace"] {
 .canvas-connections {
   overflow: visible;
   pointer-events: auto;
+  z-index: 2;
 }
 
 .canvas-connections path,
@@ -245,6 +279,7 @@ body[data-page="zm-workspace"] {
 
 .canvas-stage {
   will-change: transform;
+  z-index: 3;
 }
 
 .canvas-node {

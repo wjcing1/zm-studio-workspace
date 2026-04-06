@@ -1,6 +1,7 @@
 import { access, cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import { ensureWorkspaceAppBuild } from "./build-workspace-app.mjs";
 import { exportStudioSnapshot } from "./export-studio-snapshot.mjs";
 
 const root = process.cwd();
@@ -29,6 +30,7 @@ async function copyOptional(relativePath) {
 }
 
 async function main() {
+  await ensureWorkspaceAppBuild();
   await rm(distDir, { recursive: true, force: true });
   await mkdir(distDir, { recursive: true });
 

@@ -1,5 +1,6 @@
 import { execFileSync, spawn } from "node:child_process";
 import process from "node:process";
+import { createOverviewBaselineBoard, putOverviewBoard } from "./helpers/workspace-overview-baseline.mjs";
 
 const CODEX_HOME = process.env.CODEX_HOME || `${process.env.HOME}/.codex`;
 const PWCLI = `${CODEX_HOME}/skills/playwright/scripts/playwright_cli.sh`;
@@ -48,6 +49,18 @@ async function waitForServer(url, attempts = 30) {
   throw new Error(`Server did not become ready at ${url}`);
 }
 
+async function resetOverviewBoard() {
+  await putOverviewBoard(PORT, {
+    ...createOverviewBaselineBoard(),
+    nodes: [],
+    edges: [],
+  });
+}
+
+async function restoreOverviewBoard() {
+  await putOverviewBoard(PORT, createOverviewBaselineBoard());
+}
+
 async function main() {
   let server = null;
 
@@ -71,6 +84,8 @@ async function main() {
 
       await waitForServer(PAGE_URL);
     }
+
+    await resetOverviewBoard();
 
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
@@ -234,6 +249,10 @@ async function main() {
       }
     }
   } finally {
+    try {
+      await restoreOverviewBoard();
+    } catch {}
+
     if (server) {
       server.kill("SIGTERM");
       await wait(300);

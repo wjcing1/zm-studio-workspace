@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build:workspace": "node scripts/build-workspace-app.mjs",
     "build": "node scripts/build-pages.mjs",
     "start": "node server.mjs",
     "dev": "node server.mjs",
@@ -11,9 +12,17 @@
   "dependencies": {
     "better-sqlite3": "^12.8.0",
     "openai": "^6.33.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "tldraw": "^4.5.7",
     "ws": "^8.20.0",
     "y-protocols": "^1.0.7",
     "y-websocket": "^3.0.0",
     "yjs": "^13.6.30"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.1",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.3"
   }
 }

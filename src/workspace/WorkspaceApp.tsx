@@ -108,6 +108,7 @@ declare global {
       pageSelectedNodeIds?: string[];
       pageSelectedEdgeIds?: string[];
     };
+    __workspaceClipboardMode?: string;
     __workspaceBoardState?: WorkspaceBoard | null;
     __workspaceAppBridge?: {
       setBoardPayload(board: WorkspaceBoard): void;
@@ -1832,6 +1833,8 @@ export default function WorkspaceApp() {
     };
 
     const handleCopy = (event: ClipboardEvent) => {
+      // In compat mode, let the compat-mode handlers in workspace-page.js handle clipboard
+      if (window.__workspaceClipboardMode === "compat") return;
       if (editor.getEditingShapeId() !== null) return;
       if (isEditableTarget(event.target) || isEditableTarget(ownerDocument.activeElement)) return;
 
@@ -1848,6 +1851,8 @@ export default function WorkspaceApp() {
     };
 
     const handleCut = (event: ClipboardEvent) => {
+      // In compat mode, let the compat-mode handlers in workspace-page.js handle clipboard
+      if (window.__workspaceClipboardMode === "compat") return;
       const exported = createClipboardSelectionExport();
       if (!exported || !event.clipboardData) return;
       if (editor.getEditingShapeId() !== null) return;
@@ -1867,6 +1872,8 @@ export default function WorkspaceApp() {
     };
 
     const handlePaste = (event: ClipboardEvent) => {
+      // In compat mode, let the compat-mode handlers in workspace-page.js handle clipboard
+      if (window.__workspaceClipboardMode === "compat") return;
       if (editor.getEditingShapeId() !== null) return;
       if (isEditableTarget(event.target) || isEditableTarget(ownerDocument.activeElement)) return;
       if (!event.clipboardData) return;

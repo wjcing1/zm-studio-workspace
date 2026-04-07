@@ -207,7 +207,7 @@ const state = {
       {
         role: "assistant",
         content:
-          "Select cards or focus on an area, then ask me to expand, organize, connect, or rewrite it.",
+          "Select one or more nodes and press Space to start. I'll focus on the selected nodes while understanding the full canvas.",
       },
     ],
     input: "",
@@ -215,6 +215,7 @@ const state = {
     error: "",
     backendReady: false,
     showStarters: true,
+    contextNodeIds: [],
   },
 };
 
@@ -1346,11 +1347,13 @@ function renderCanvas() {
       const style = `left:${node.x}px;top:${node.y}px;width:${node.w}px;height:${height};`;
       const isSelected = state.selection.nodeIds.includes(node.id);
       const isHovered = state.ui.hoveredNodeId === node.id;
+      const isAiContext = state.assistant.contextNodeIds.includes(node.id);
       const className = [
         "canvas-node",
         ...(node.type === "image" ? ["image-node"] : ["card"]),
         isSelected ? "is-selected" : "",
         isHovered ? "is-hovered" : "",
+        isAiContext ? "is-ai-context" : "",
       ]
         .filter(Boolean)
         .join(" ");
@@ -1406,19 +1409,19 @@ function renderMarqueeSelection() {
 }
 
 function buildAssistantSummary(board = getActiveBoard()) {
-  const nearby = collectNearbyNodes(board, { x: state.pointer.worldX, y: state.pointer.worldY }, 3);
-  const selected = getSelectedNodes(board);
-  const hoveredNode = state.ui.hoveredNodeId ? getNodeById(state.ui.hoveredNodeId) : null;
-  const pointerLabel = hoveredNode
-    ? `Focus ${hoveredNode.title || hoveredNode.label || hoveredNode.content?.split("\n")[0] || hoveredNode.id}`
-    : nearby[0]
-      ? `Nearby ${nearby[0].title || nearby[0].label || nearby[0].content?.split("\n")[0] || nearby[0].id}`
-      : "No nearby focus yet";
-  const selectedLabel = selected.length > 0 ? `${selected.length} node${selected.length > 1 ? "s" : ""} selected` : "No selection";
+  const contextIds = state.assistant.contextNodeIds;
+  const contextNodes = contextIds
+    .map((id) => board.nodes.find((n) => n.id === id))
+    .filter(Boolean);
 
-  return `${pointerLabel}. ${selectedLabel}. Nearby context: ${
-    nearby.map((node) => node.title || node.label || node.content?.split("\n")[0] || node.id).join(", ") || "none"
-  }.`;
+  if (contextNodes.length > 0) {
+    const labels = contextNodes.map(
+      (node) => node.title || node.label || node.content?.split("\n")[0] || node.id
+    );
+    return `AI Context: ${labels.join(", ")}. Full canvas loaded (${board.nodes.length} nodes, ${board.edges.length} edges).`;
+  }
+
+  return `Full canvas loaded (${board.nodes.length} nodes, ${board.edges.length} edges). Select nodes and press Space to focus AI.`;
 }
 
 function renderAssistantContext() {
@@ -1426,7 +1429,11 @@ function renderAssistantContext() {
   const summary = buildAssistantSummary(board);
   assistantContextSummary.textContent = summary;
 
+  // Show context node count badge in the companion button
+  const contextCount = state.assistant.contextNodeIds.length;
   assistantCompanion.hidden = false;
+  assistantCompanion.dataset.contextCount = String(contextCount);
+  assistantCompanion.classList.toggle("has-context", contextCount > 0);
   workspaceAssistantPanel.hidden = !state.ui.isAssistantOpen;
   workspaceAssistantBody?.setAttribute("data-assistant-open", state.ui.isAssistantOpen ? "true" : "false");
 }
@@ -1456,8 +1463,13 @@ function renderAssistantThread() {
 }
 
 function openAssistantPanel(options = {}) {
+  // Lock current selection as AI context nodes
+  if (options.lockContext !== false && state.selection.nodeIds.length > 0) {
+    state.assistant.contextNodeIds = [...state.selection.nodeIds];
+  }
   state.ui.isAssistantOpen = true;
   renderAssistantThread();
+  renderCanvas();
   renderAssistantContext();
 
   if (options.focusInput) {
@@ -1468,16 +1480,22 @@ function openAssistantPanel(options = {}) {
 function closeAssistantPanel() {
   if (!state.ui.isAssistantOpen) return;
   state.ui.isAssistantOpen = false;
+  state.assistant.contextNodeIds = [];
+  renderCanvas();
+  renderAssistantContext();
+}
+
+function clearAiContext() {
+  state.assistant.contextNodeIds = [];
+  renderCanvas();
   renderAssistantContext();
 }
 
 function toggleAssistantPanel(options = {}) {
-  state.ui.isAssistantOpen = !state.ui.isAssistantOpen;
-  renderAssistantThread();
-  renderAssistantContext();
-
-  if (state.ui.isAssistantOpen && options.focusInput) {
-    focusAssistantInput(assistantInput);
+  if (state.ui.isAssistantOpen) {
+    closeAssistantPanel();
+  } else {
+    openAssistantPanel(options);
   }
 }
 
@@ -2159,7 +2177,75 @@ function serializeNodeForAssistant(node) {
     title: node.title || node.label || "",
     content: node.content || node.desc || node.url || "",
     tags: Array.isArray(node.tags) ? node.tags.slice(0, 6) : [],
+    // Include file/image URLs for multimodal context
+    file: node.file || "",
+    fileKind: node.fileKind || "",
+    mimeType: node.mimeType || "",
   };
+}
+
+/**
+ * Compact serialization for non-context nodes.
+ * Only sends enough for the AI to know what exists and where,
+ * without the full content payload.
+ */
+function serializeNodeCompact(node) {
+  const label = node.title || node.label || node.content?.split("\n")[0]?.slice(0, 60) || "";
+  return {
+    id: node.id,
+    type: node.type,
+    x: Math.round(node.x),
+    y: Math.round(node.y),
+    label,
+  };
+}
+
+/**
+ * Build a cached canvas digest string.
+ * This gives the AI a high-level understanding of the full canvas
+ * without sending all raw node data every time.
+ */
+function buildCanvasDigest(board) {
+  const typeCounts = {};
+  for (const node of board.nodes) {
+    typeCounts[node.type] = (typeCounts[node.type] || 0) + 1;
+  }
+
+  const typeBreakdown = Object.entries(typeCounts)
+    .map(([type, count]) => `${count} ${type}`)
+    .join(", ");
+
+  const nodeLabels = board.nodes
+    .map((n) => {
+      const label = n.title || n.label || n.content?.split("\n")[0]?.slice(0, 40) || n.id;
+      return `[${n.type}] ${label}`;
+    })
+    .join("; ");
+
+  return `Canvas "${board.title || board.key}": ${board.nodes.length} nodes (${typeBreakdown}), ${board.edges.length} edges. Nodes: ${nodeLabels}`;
+}
+
+// Cache for canvas digest to avoid recomputing on every request
+let cachedDigest = { boardKey: null, nodeCount: 0, edgeCount: 0, digest: "" };
+
+function getCanvasDigest(board) {
+  // Invalidate cache if board structure changed
+  if (
+    cachedDigest.boardKey === board.key &&
+    cachedDigest.nodeCount === board.nodes.length &&
+    cachedDigest.edgeCount === board.edges.length
+  ) {
+    return cachedDigest.digest;
+  }
+
+  cachedDigest = {
+    boardKey: board.key,
+    nodeCount: board.nodes.length,
+    edgeCount: board.edges.length,
+    digest: buildCanvasDigest(board),
+  };
+
+  return cachedDigest.digest;
 }
 
 function collectVisibleNodes(board) {
@@ -2173,7 +2259,7 @@ function collectVisibleNodes(board) {
   return board.nodes
     .filter((node) => rectIntersects(worldRect, getNodeRectInWorld(node)))
     .slice(0, 10)
-    .map(serializeNodeForAssistant);
+    .map(serializeNodeCompact);
 }
 
 function collectConnectedNodes(board, nodeIds) {
@@ -2197,10 +2283,19 @@ function collectConnectedNodes(board, nodeIds) {
 
 function buildWorkspaceAssistantRequest() {
   const board = getActiveBoard();
-  const nearbyNodes = collectNearbyNodes(board, { x: state.pointer.worldX, y: state.pointer.worldY }, 6);
+  const contextIds = state.assistant.contextNodeIds;
+  const contextIdSet = new Set(contextIds);
+  const contextNodes = contextIds
+    .map((id) => board.nodes.find((n) => n.id === id))
+    .filter(Boolean);
   const selectedNodes = getSelectedNodes(board);
-  const selectedIds = selectedNodes.map((node) => node.id);
-  const hoveredNode = state.ui.hoveredNodeId ? getNodeById(state.ui.hoveredNodeId) : null;
+
+  // Tiered serialization: full data for context nodes, compact for the rest
+  const allNodes = board.nodes.map((node) =>
+    contextIdSet.has(node.id)
+      ? serializeNodeForAssistant(node)
+      : serializeNodeCompact(node)
+  );
 
   return {
     messages: state.assistant.messages
@@ -2216,8 +2311,9 @@ function buildWorkspaceAssistantRequest() {
       description: board.description,
       nodeCount: board.nodes.length,
       edgeCount: board.edges.length,
-      nodes: board.nodes.slice(0, 40).map(serializeNodeForAssistant),
-      edges: board.edges.slice(0, 60).map((edge) => ({
+      digest: getCanvasDigest(board),
+      nodes: allNodes,
+      edges: board.edges.map((edge) => ({
         id: edge.id,
         from: edge.from,
         to: edge.to,
@@ -2225,14 +2321,10 @@ function buildWorkspaceAssistantRequest() {
       })),
     },
     focus: {
-      pointer: {
-        x: Math.round(state.pointer.worldX),
-        y: Math.round(state.pointer.worldY),
-      },
-      hoveredNode: hoveredNode ? serializeNodeForAssistant(hoveredNode) : null,
-      nearbyNodes: nearbyNodes.map(serializeNodeForAssistant),
+      contextNodeIds: contextIds,
+      contextNodes: contextNodes.map(serializeNodeForAssistant),
       selectedNodes: selectedNodes.map(serializeNodeForAssistant),
-      connectedNodes: collectConnectedNodes(board, [...selectedIds, hoveredNode?.id].filter(Boolean)),
+      connectedNodes: collectConnectedNodes(board, contextIds.length > 0 ? contextIds : selectedNodes.map((n) => n.id)),
       visibleNodes: collectVisibleNodes(board),
     },
   };
@@ -3269,10 +3361,17 @@ window.addEventListener("keydown", (event) => {
       return;
     }
 
+    // Space: open AI assistant with selected nodes as context (or hand tool if no selection)
     if (isSpaceShortcut) {
       event.preventDefault();
       if (!event.repeat) {
-        beginTemporaryHandTool();
+        const hasSelection = (window.__workspaceApp?.pageSelectedNodeIds?.length || 0) > 0
+          || state.selection.nodeIds.length > 0;
+        if (hasSelection) {
+          openAssistantPanel({ focusInput: true });
+        } else {
+          beginTemporaryHandTool();
+        }
       }
       return;
     }
@@ -3314,11 +3413,6 @@ window.addEventListener("keydown", (event) => {
       }
 
       if (loweredKey === "v") {
-        // Miro-style: do NOT preventDefault here.
-        // Instead, let the native paste event fire so our capture-phase
-        // paste handler can read clipboardData.files for Finder files.
-        // For non-file content, the tldraw bridge paste will be called
-        // from the paste handler if no files are found.
         focusClipboardTrap();
         return;
       }
@@ -3332,6 +3426,7 @@ window.addEventListener("keydown", (event) => {
     return;
   }
 
+  // Compat mode: Space opens AI assistant with selected nodes as context
   if (isSpaceShortcut && shouldOpenAssistantFromSpace(event, target)) {
     event.preventDefault();
     if (!event.repeat) {

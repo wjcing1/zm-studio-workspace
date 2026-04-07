@@ -460,6 +460,31 @@ function normalizeWorkspaceNode(node) {
     content: typeof node.content === "string" ? node.content.slice(0, 1200) : "",
     url: typeof node.url === "string" ? node.url.slice(0, 500) : "",
     tags: Array.isArray(node.tags) ? node.tags.map((tag) => String(tag).slice(0, 60)).slice(0, 8) : [],
+    file: typeof node.file === "string" ? node.file.slice(0, 500) : "",
+    fileKind: typeof node.fileKind === "string" ? node.fileKind.slice(0, 24) : "",
+    mimeType: typeof node.mimeType === "string" ? node.mimeType.slice(0, 60) : "",
+  };
+}
+
+/**
+ * Normalize a compact node (only id, type, position, label).
+ * Used for non-context nodes to reduce payload size.
+ */
+function normalizeWorkspaceNodeAny(node) {
+  if (!node || typeof node !== "object") return null;
+
+  // If it has content/title fields, it's a full node
+  if (node.content || node.title || node.w || node.h) {
+    return normalizeWorkspaceNode(node);
+  }
+
+  // Compact node: minimal fields only
+  return {
+    id: typeof node.id === "string" ? node.id.slice(0, 120) : "",
+    type: typeof node.type === "string" ? node.type.slice(0, 24) : "text",
+    x: typeof node.x === "number" ? Math.round(node.x) : 0,
+    y: typeof node.y === "number" ? Math.round(node.y) : 0,
+    label: typeof node.label === "string" ? node.label.slice(0, 120) : "",
   };
 }
 
@@ -475,9 +500,10 @@ function normalizeWorkspaceBody(body) {
       description: typeof board.description === "string" ? board.description.slice(0, 800) : "",
       nodeCount: typeof board.nodeCount === "number" ? board.nodeCount : Array.isArray(board.nodes) ? board.nodes.length : 0,
       edgeCount: typeof board.edgeCount === "number" ? board.edgeCount : Array.isArray(board.edges) ? board.edges.length : 0,
-      nodes: Array.isArray(board.nodes) ? board.nodes.slice(0, 40).map(normalizeWorkspaceNode).filter(Boolean) : [],
+      digest: typeof board.digest === "string" ? board.digest.slice(0, 4000) : "",
+      nodes: Array.isArray(board.nodes) ? board.nodes.map(normalizeWorkspaceNodeAny).filter(Boolean) : [],
       edges: Array.isArray(board.edges)
-        ? board.edges.slice(0, 60).map((edge) => ({
+        ? board.edges.map((edge) => ({
             id: typeof edge?.id === "string" ? edge.id.slice(0, 120) : "",
             from: typeof edge?.from === "string" ? edge.from.slice(0, 120) : "",
             to: typeof edge?.to === "string" ? edge.to.slice(0, 120) : "",
@@ -486,31 +512,37 @@ function normalizeWorkspaceBody(body) {
         : [],
     },
     focus: {
-      pointer:
-        focus.pointer && typeof focus.pointer === "object"
-          ? {
-              x: typeof focus.pointer.x === "number" ? Math.round(focus.pointer.x) : 0,
-              y: typeof focus.pointer.y === "number" ? Math.round(focus.pointer.y) : 0,
-            }
-          : { x: 0, y: 0 },
-      hoveredNode: normalizeWorkspaceNode(focus.hoveredNode),
-      nearbyNodes: Array.isArray(focus.nearbyNodes) ? focus.nearbyNodes.slice(0, 10).map(normalizeWorkspaceNode).filter(Boolean) : [],
+      contextNodeIds: Array.isArray(focus.contextNodeIds)
+        ? focus.contextNodeIds.filter((id) => typeof id === "string").slice(0, 20)
+        : [],
+      contextNodes: Array.isArray(focus.contextNodes) ? focus.contextNodes.slice(0, 20).map(normalizeWorkspaceNode).filter(Boolean) : [],
       selectedNodes: Array.isArray(focus.selectedNodes) ? focus.selectedNodes.slice(0, 10).map(normalizeWorkspaceNode).filter(Boolean) : [],
       connectedNodes: Array.isArray(focus.connectedNodes)
         ? focus.connectedNodes.slice(0, 12).map(normalizeWorkspaceNode).filter(Boolean)
         : [],
       visibleNodes: Array.isArray(focus.visibleNodes)
-        ? focus.visibleNodes.slice(0, 12).map(normalizeWorkspaceNode).filter(Boolean)
+        ? focus.visibleNodes.slice(0, 12).map(normalizeWorkspaceNodeAny).filter(Boolean)
         : [],
     },
   };
 }
 
 function buildWorkspaceAssistantPrompt(workspaceContext, memorySection = "Long-term memory:\n- none") {
+  const hasContext = workspaceContext.focus.contextNodeIds?.length > 0;
+  const priorityInstruction = hasContext
+    ? "The user has explicitly selected specific nodes as AI context (marked in focus.contextNodes with full data). Prioritize these context nodes above everything else, then use connected nodes and the canvas digest for broader understanding."
+    : "No specific nodes are selected as AI context. Use the canvas digest and full node list to understand the board holistically.";
+
   return [
     "You are the workspace canvas copilot for ZM Studio.",
     "You help the user think on a spatial canvas and you may directly modify the active board.",
-    "Prioritize context in this order: hovered node, selected nodes, nearby nodes, connected nodes, visible nodes, then board summary.",
+    priorityInstruction,
+    "IMPORTANT: The board uses TIERED data to save bandwidth:",
+    "- board.digest: A human-readable summary of ALL nodes on the canvas (always complete)",
+    "- board.nodes: Mixed array — context nodes have full data (content, tags, file, etc.), other nodes have compact data (id, type, position, label only)",
+    "- focus.contextNodes: The user-selected nodes with FULL data — these are your primary focus",
+    "- focus.connectedNodes: Nodes connected by edges to context nodes (full data)",
+    "Use the digest to understand what the canvas contains overall. Use contextNodes for detailed analysis.",
     "Use long-term memory only as durable guidance. Prefer current user instructions if they conflict.",
     "Return JSON only with this shape:",
     '{"reply":"short helpful response","operations":[{"type":"addNode","node":{}},{"type":"updateNode","id":"node-id","patch":{}},{"type":"removeNode","id":"node-id"},{"type":"addEdge","edge":{}},{"type":"removeEdge","id":"edge-id"}]}',

@@ -35,12 +35,15 @@ body[data-page="zm-workspace"] {
   z-index: 1;
 }
 
+.canvas-viewport[data-workspace-mode="compat"] .workspace-canvas-app,
 .canvas-viewport:not(.is-tldraw-primary) .workspace-canvas-app {
   pointer-events: none;
   opacity: 0;
   visibility: hidden;
 }
 
+.canvas-viewport[data-workspace-mode="hybrid"] .workspace-canvas-app,
+.canvas-viewport[data-workspace-mode="tldraw"] .workspace-canvas-app,
 .canvas-viewport.is-tldraw-primary .workspace-canvas-app {
   z-index: 5;
   pointer-events: auto;
@@ -48,6 +51,12 @@ body[data-page="zm-workspace"] {
   visibility: visible;
 }
 
+.canvas-viewport[data-workspace-mode="hybrid"] .canvas-stage,
+.canvas-viewport[data-workspace-mode="hybrid"] .canvas-connections,
+.canvas-viewport[data-workspace-mode="hybrid"] .marquee-selection,
+.canvas-viewport[data-workspace-mode="tldraw"] .canvas-stage,
+.canvas-viewport[data-workspace-mode="tldraw"] .canvas-connections,
+.canvas-viewport[data-workspace-mode="tldraw"] .marquee-selection,
 .canvas-viewport.is-tldraw-primary .canvas-stage,
 .canvas-viewport.is-tldraw-primary .canvas-connections,
 .canvas-viewport.is-tldraw-primary .marquee-selection {

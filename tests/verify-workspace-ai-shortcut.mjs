@@ -96,6 +96,7 @@ async function main() {
               await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
               return {
+                routeMode: document.getElementById("canvasViewport")?.dataset?.workspaceMode || null,
                 beforeHidden: true,
                 afterHidden: panel.hidden,
                 activeElementId: document.activeElement?.id || "",
@@ -104,6 +105,10 @@ async function main() {
             }`,
           ]),
         );
+
+        if (result.routeMode !== "hybrid") {
+          throw new Error(`Plain workspace route should keep the assistant shortcut on the hybrid shell. Got ${result.routeMode || "<none>"}`);
+        }
 
         if (result.afterHidden) {
           throw new Error("Pressing Space should open the workspace AI panel.");
@@ -115,7 +120,7 @@ async function main() {
           );
         }
 
-        console.log("PASS: pressing Space opens and focuses the workspace AI assistant.");
+        console.log("PASS: pressing Space opens and focuses the workspace AI assistant on the hybrid shell route.");
         return;
       } catch (error) {
         if (!isRetryablePlaywrightError(error) || attempt === 2) {

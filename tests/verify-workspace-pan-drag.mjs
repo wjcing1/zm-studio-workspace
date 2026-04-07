@@ -1,11 +1,11 @@
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import process from "node:process";
+import { startIsolatedWorkspaceServer } from "./helpers/isolated-workspace-server.mjs";
 
 const CODEX_HOME = process.env.CODEX_HOME || `${process.env.HOME}/.codex`;
 const PWCLI = `${CODEX_HOME}/skills/playwright/scripts/playwright_cli.sh`;
 const SESSION = `wwm_${process.pid}_${Date.now().toString(36)}_${Math.floor(Math.random() * 1000)}`;
-const PORT = 4173;
-const PAGE_URL = `http://127.0.0.1:${PORT}/workspace.html?codex-test-auth=1`;
+const PAGE_PATH = "/workspace.html?codex-test-auth=1";
 
 function runPw(args) {
   return execFileSync(PWCLI, [`-s=${SESSION}`, ...args], {
@@ -23,45 +23,19 @@ function extractJsonResult(output) {
   return JSON.parse(match[1].trim());
 }
 
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitForServer(url, attempts = 30) {
-  for (let index = 0; index < attempts; index += 1) {
-    try {
-      const response = await fetch(url);
-      if (response.ok) return;
-    } catch {}
-    await wait(250);
-  }
-
-  throw new Error(`Server did not become ready at ${url}`);
-}
-
 async function main() {
-  let server = null;
+  let runtime = null;
 
   try {
     try {
       runPw(["kill-all"]);
     } catch {}
 
-    try {
-      await waitForServer(PAGE_URL, 4);
-    } catch {
-      server = spawn("node", ["server.mjs"], {
-        cwd: process.cwd(),
-        env: {
-          ...process.env,
-          PORT: String(PORT),
-          MINIMAX_API_KEY: "",
-        },
-        stdio: "ignore",
-      });
-
-      await waitForServer(PAGE_URL);
-    }
+    runtime = await startIsolatedWorkspaceServer({
+      cwd: process.cwd(),
+      healthPath: PAGE_PATH,
+    });
+    const PAGE_URL = `http://127.0.0.1:${runtime.port}${PAGE_PATH}`;
 
     runPw(["open", PAGE_URL]);
 
@@ -70,14 +44,18 @@ async function main() {
         "eval",
         `async () => {
           const viewport = document.getElementById("canvasViewport");
-          const stage = document.getElementById("canvasStage");
-          const marquee = document.getElementById("marqueeSelection");
-          const targetNode = stage.querySelector(".canvas-node");
+          const scene =
+            document.querySelector(".workspace-canvas-app .tl-canvas") ||
+            document.querySelector(".workspace-canvas-app .tl-container");
+          const targetNode = document.querySelector(".workspace-canvas-app [data-workspace-node-id]");
           if (!targetNode) {
-            return { ok: false, reason: "no-canvas-node" };
+            return { ok: false, reason: "no-tldraw-node" };
+          }
+          if (!viewport || !scene) {
+            return { ok: false, reason: "no-tldraw-scene" };
           }
           const targetRect = targetNode.getBoundingClientRect();
-          const before = stage.style.transform;
+          const beforeCamera = structuredClone(window.__workspaceBoardState?.camera || null);
           const start = {
             x: Math.max(targetRect.left - 60, viewport.getBoundingClientRect().left + 20),
             y: Math.max(targetRect.top - 50, viewport.getBoundingClientRect().top + 20),
@@ -88,9 +66,10 @@ async function main() {
           };
 
           function fire(type, x, y, buttons) {
-            viewport.dispatchEvent(
+            scene.dispatchEvent(
               new PointerEvent(type, {
                 bubbles: true,
+                composed: true,
                 clientX: x,
                 clientY: y,
                 pointerId: 1,
@@ -103,25 +82,19 @@ async function main() {
 
           fire("pointerdown", start.x, start.y, 1);
           fire("pointermove", end.x, end.y, 1);
-
-          const marqueeWhileDragging = {
-            hidden: marquee.hidden,
-            width: marquee.style.width,
-            height: marquee.style.height,
-          };
+          await new Promise((resolve) => setTimeout(resolve, 120));
 
           fire("pointerup", end.x, end.y, 0);
 
-          await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+          await new Promise((resolve) => setTimeout(resolve, 180));
 
           return {
             ok: true,
-            before,
-            after: stage.style.transform,
-            changed: before !== stage.style.transform,
-            marqueeWhileDragging,
-            targetId: targetNode.dataset.id || null,
-            selectedIds: [...stage.querySelectorAll(".canvas-node.is-selected")].map((node) => node.dataset.id),
+            routeMode: viewport.dataset.workspaceMode || null,
+            beforeCamera,
+            afterCamera: structuredClone(window.__workspaceBoardState?.camera || null),
+            targetId: targetNode.dataset.workspaceNodeId || null,
+            selectedIds: [...(window.__workspaceApp?.pageSelectedNodeIds || [])],
           };
         }`,
       ]),
@@ -131,14 +104,19 @@ async function main() {
       throw new Error(`Pan-drag probe failed: ${result.reason || "unknown reason"}`);
     }
 
-    if (result.changed) {
-      throw new Error(
-        `Dragging a blank area should keep the camera stable for marquee selection. Before: ${result.before} After: ${result.after}`,
-      );
+    if (result.routeMode !== "hybrid") {
+      throw new Error(`Default workspace route should run marquee interactions through the hybrid shell. Got ${result.routeMode || "<none>"}`);
     }
 
-    if (result.marqueeWhileDragging.hidden) {
-      throw new Error("Dragging a blank area should show the marquee selection box while selecting.");
+    const cameraMoved =
+      Math.abs((result.afterCamera?.x || 0) - (result.beforeCamera?.x || 0)) > 0.01 ||
+      Math.abs((result.afterCamera?.y || 0) - (result.beforeCamera?.y || 0)) > 0.01 ||
+      Math.abs((result.afterCamera?.z || 0) - (result.beforeCamera?.z || 0)) > 0.0001;
+
+    if (cameraMoved) {
+      throw new Error(
+        `Dragging a blank area should keep the tldraw camera stable for marquee selection. Before: ${JSON.stringify(result.beforeCamera)} After: ${JSON.stringify(result.afterCamera)}`,
+      );
     }
 
     if (!result.targetId || !result.selectedIds.includes(result.targetId)) {
@@ -147,7 +125,7 @@ async function main() {
       );
     }
 
-    console.log("PASS: dragging a blank canvas area creates a marquee selection.");
+    console.log("PASS: dragging a blank area across the visible tldraw scene marquee-selects a node without moving the camera.");
   } finally {
     try {
       runPw(["close"]);
@@ -157,13 +135,7 @@ async function main() {
       runPw(["kill-all"]);
     } catch {}
 
-    if (server) {
-      server.kill("SIGTERM");
-      await wait(300);
-      if (server.exitCode === null) {
-        server.kill("SIGKILL");
-      }
-    }
+    await runtime?.stop?.();
   }
 }
 

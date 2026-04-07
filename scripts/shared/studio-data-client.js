@@ -281,6 +281,10 @@ function applyRemoteBoard(board, remoteBoard) {
   };
 }
 
+function getBoardLocalRevision(board) {
+  return typeof board?.localRevision === "number" && Number.isFinite(board.localRevision) ? board.localRevision : 0;
+}
+
 function boardEndpoint(config, boardKey) {
   const pattern = config?.endpoints?.boards || DEFAULT_COLLABORATION_CONFIG.endpoints.boards;
   return pattern.replace(":boardId", encodeURIComponent(boardKey));
@@ -357,6 +361,7 @@ export async function hydrateBoardFromCloud(board) {
 
   const task = (async () => {
     const config = await getCollaborationConfig();
+    const startedRevision = getBoardLocalRevision(board);
 
     if (!config.features?.persistence || config.mode !== "server") {
       return null;
@@ -370,8 +375,12 @@ export async function hydrateBoardFromCloud(board) {
     const payload = await readJsonResponse(response, `Unable to load board ${board.key}.`);
 
     if (payload?.board) {
-      applyRemoteBoard(board, payload.board);
-      writeStorage(boardStorageKey(board.key), JSON.stringify(createBoardSnapshot(board)));
+      // If the board changed locally while the hydration request was in flight,
+      // keep the newer local state and let the pending save push it upstream.
+      if (getBoardLocalRevision(board) === startedRevision) {
+        applyRemoteBoard(board, payload.board);
+        writeStorage(boardStorageKey(board.key), JSON.stringify(createBoardSnapshot(board)));
+      }
     }
 
     return payload;
@@ -410,8 +419,11 @@ async function flushBoardSave(boardKey) {
     const payload = await readJsonResponse(response, `Unable to save board ${boardKey}.`);
 
     if (payload?.board && pending.board?.key === boardKey) {
-      applyRemoteBoard(pending.board, payload.board);
-      writeStorage(boardStorageKey(boardKey), JSON.stringify(createBoardSnapshot(pending.board)));
+      // Skip stale save responses if newer local edits landed after this request was queued.
+      if (getBoardLocalRevision(pending.board) === pending.revision) {
+        applyRemoteBoard(pending.board, payload.board);
+        writeStorage(boardStorageKey(boardKey), JSON.stringify(createBoardSnapshot(pending.board)));
+      }
     }
   } catch (error) {
     console.warn(error instanceof Error ? error.message : `Unable to save board ${boardKey}.`);
@@ -456,6 +468,8 @@ export function createBoardRegistry() {
 export function persistBoard(board) {
   if (!board) return;
 
+  board.localRevision = getBoardLocalRevision(board) + 1;
+
   writeStorage(boardStorageKey(board.key), JSON.stringify(createBoardSnapshot(board)));
 
   const realtimeSync = realtimeBoardSaves.get(board.key);
@@ -471,6 +485,7 @@ export function persistBoard(board) {
 
   pendingBoardSaves.set(board.key, {
     board,
+    revision: board.localRevision,
     payload: createRemoteBoardPayload(board),
     timer: window.setTimeout(() => {
       flushBoardSave(board.key);

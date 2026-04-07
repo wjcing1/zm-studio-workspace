@@ -1,11 +1,11 @@
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import process from "node:process";
+import { startIsolatedWorkspaceServer } from "./helpers/isolated-workspace-server.mjs";
 
 const CODEX_HOME = process.env.CODEX_HOME || `${process.env.HOME}/.codex`;
 const PWCLI = `${CODEX_HOME}/skills/playwright/scripts/playwright_cli.sh`;
 const SESSION = `wwt_${process.pid}_${Date.now().toString(36)}_${Math.floor(Math.random() * 1000)}`;
-const PORT = 4173;
-const PAGE_URL = `http://127.0.0.1:${PORT}/workspace.html?codex-test-auth=1`;
+const PAGE_PATH = "/workspace.html?codex-test-auth=1";
 
 function runPw(args) {
   return execFileSync(PWCLI, [`-s=${SESSION}`, ...args], {
@@ -23,45 +23,19 @@ function extractJsonResult(output) {
   return JSON.parse(match[1].trim());
 }
 
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitForServer(url, attempts = 30) {
-  for (let index = 0; index < attempts; index += 1) {
-    try {
-      const response = await fetch(url);
-      if (response.ok) return;
-    } catch {}
-    await wait(250);
-  }
-
-  throw new Error(`Server did not become ready at ${url}`);
-}
-
 async function main() {
-  let server = null;
+  let runtime = null;
 
   try {
     try {
       runPw(["kill-all"]);
     } catch {}
 
-    try {
-      await waitForServer(PAGE_URL, 4);
-    } catch {
-      server = spawn("node", ["server.mjs"], {
-        cwd: process.cwd(),
-        env: {
-          ...process.env,
-          PORT: String(PORT),
-          MINIMAX_API_KEY: "",
-        },
-        stdio: "ignore",
-      });
-
-      await waitForServer(PAGE_URL);
-    }
+    runtime = await startIsolatedWorkspaceServer({
+      cwd: process.cwd(),
+      healthPath: PAGE_PATH,
+    });
+    const PAGE_URL = `http://127.0.0.1:${runtime.port}${PAGE_PATH}`;
 
     runPw(["open", PAGE_URL]);
 
@@ -70,34 +44,29 @@ async function main() {
         "eval",
         `async () => {
           const viewport = document.getElementById("canvasViewport");
-          const stage = document.getElementById("canvasStage");
-          const rect = viewport.getBoundingClientRect();
+          const scene =
+            document.querySelector(".workspace-canvas-app .tl-canvas") ||
+            document.querySelector(".workspace-canvas-app .tl-container");
+          if (!viewport || !scene) {
+            return { ok: false, reason: "missing-tldraw-scene" };
+          }
+          const rect = scene.getBoundingClientRect();
           const focusPoint = {
             x: Math.round(rect.left + rect.width * 0.72),
             y: Math.round(rect.top + rect.height * 0.62),
           };
-
-          function parseTransform(value) {
-            const match = value.match(/translate\\(([-\\d.]+)px,\\s*([-\\d.]+)px\\) scale\\(([-\\d.]+)\\)/);
-            if (!match) {
-              throw new Error("Unable to parse canvas transform.");
-            }
-            return {
-              x: Number(match[1]),
-              y: Number(match[2]),
-              z: Number(match[3]),
-            };
-          }
+          const readCamera = () => structuredClone(window.__workspaceBoardState?.camera || null);
 
           function flush() {
-            return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            return new Promise((resolve) => setTimeout(resolve, 180));
           }
 
           function fireWheel(options) {
-            viewport.dispatchEvent(
+            scene.dispatchEvent(
               new WheelEvent("wheel", {
                 bubbles: true,
                 cancelable: true,
+                composed: true,
                 clientX: focusPoint.x,
                 clientY: focusPoint.y,
                 ...options,
@@ -106,10 +75,11 @@ async function main() {
           }
 
           function fireTouch(type, x, y, pointerId, buttons = type === "pointerup" ? 0 : 1) {
-            viewport.dispatchEvent(
+            scene.dispatchEvent(
               new PointerEvent(type, {
                 bubbles: true,
                 cancelable: true,
+                composed: true,
                 clientX: x,
                 clientY: y,
                 pointerId,
@@ -120,15 +90,15 @@ async function main() {
             );
           }
 
-          const before = parseTransform(stage.style.transform);
+          const before = readCamera();
 
           fireWheel({ deltaX: 96, deltaY: 72 });
           await flush();
-          const afterWheelPan = parseTransform(stage.style.transform);
+          const afterWheelPan = readCamera();
 
           fireWheel({ deltaY: -140, ctrlKey: true });
           await flush();
-          const afterWheelPinch = parseTransform(stage.style.transform);
+          const afterWheelPinch = readCamera();
 
           fireTouch("pointerdown", focusPoint.x - 60, focusPoint.y - 20, 11);
           fireTouch("pointerdown", focusPoint.x + 60, focusPoint.y + 24, 12);
@@ -137,9 +107,12 @@ async function main() {
           fireTouch("pointerup", focusPoint.x - 110, focusPoint.y - 34, 11, 0);
           fireTouch("pointerup", focusPoint.x + 118, focusPoint.y + 38, 12, 0);
           await flush();
-          const afterTouchGesture = parseTransform(stage.style.transform);
+          const afterTouchGesture = readCamera();
 
           return {
+            ok: true,
+            routeMode: viewport.dataset.workspaceMode || null,
+            focusPoint,
             before,
             afterWheelPan,
             afterWheelPinch,
@@ -149,11 +122,18 @@ async function main() {
       ]),
     );
 
+    if (!result.ok) {
+      throw new Error(`Touch gesture probe failed: ${result.reason || "unknown reason"}`);
+    }
+
+    if (result.routeMode !== "hybrid") {
+      throw new Error(`Default workspace route should run visible-scene gestures through the hybrid shell. Got ${result.routeMode || "<none>"}`);
+    }
+
     const wheelPanMovedCamera =
       result.afterWheelPan.x !== result.before.x || result.afterWheelPan.y !== result.before.y;
     const wheelPanPreservedZoom = Math.abs(result.afterWheelPan.z - result.before.z) < 0.0001;
     const wheelPinchChangedZoom = Math.abs(result.afterWheelPinch.z - result.afterWheelPan.z) > 0.0001;
-    const touchGestureChangedZoom = Math.abs(result.afterTouchGesture.z - result.afterWheelPinch.z) > 0.0001;
 
     if (!wheelPanMovedCamera || !wheelPanPreservedZoom) {
       throw new Error(
@@ -167,13 +147,15 @@ async function main() {
       );
     }
 
+    const touchGestureChangedZoom = Math.abs(result.afterTouchGesture.z - result.afterWheelPinch.z) > 0.0001;
+
     if (!touchGestureChangedZoom) {
       throw new Error(
         `Two-touch pointer gestures should change zoom. After wheel pinch: ${JSON.stringify(result.afterWheelPinch)} After touch: ${JSON.stringify(result.afterTouchGesture)}`,
       );
     }
 
-    console.log("PASS: two-finger gestures pan and zoom the workspace canvas.");
+    console.log("PASS: wheel and touch gestures update the visible tldraw scene camera on the hybrid route.");
   } finally {
     try {
       runPw(["close"]);
@@ -183,13 +165,7 @@ async function main() {
       runPw(["kill-all"]);
     } catch {}
 
-    if (server) {
-      server.kill("SIGTERM");
-      await wait(300);
-      if (server.exitCode === null) {
-        server.kill("SIGKILL");
-      }
-    }
+    await runtime?.stop?.();
   }
 }
 

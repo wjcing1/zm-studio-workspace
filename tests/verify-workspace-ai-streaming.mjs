@@ -1,4 +1,7 @@
 import { execFileSync, spawn } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import process from "node:process";
 
 const CODEX_HOME = process.env.CODEX_HOME || `${process.env.HOME}/.codex`;
@@ -64,11 +67,13 @@ async function waitForServer(url, attempts = 30) {
 }
 
 async function main() {
+  const tempStudioDir = mkdtempSync(path.join(tmpdir(), "workspace-ai-streaming-"));
   const server = spawn("node", ["server.mjs"], {
     cwd: process.cwd(),
     env: {
       ...process.env,
       PORT: String(PORT),
+      STUDIO_DB_PATH: path.join(tempStudioDir, "studio.sqlite"),
       MINIMAX_API_KEY: "",
       WORKSPACE_ASSISTANT_STREAM_TEST_MODE: "1",
       WORKSPACE_ASSISTANT_STREAM_TEST_TEXT: STREAM_TEXT,
@@ -122,16 +127,18 @@ async function main() {
               const form = document.getElementById("assistantComposer");
               const startersRegion = document.getElementById("assistantStartersRegion");
               const messages = document.getElementById("assistantMessages");
-              const stage = document.getElementById("canvasStage");
+              const scene =
+                document.querySelector(".workspace-canvas-app .tl-canvas") ||
+                document.querySelector(".workspace-canvas-app .tl-container");
 
-              if (!panel || !input || !form || !startersRegion || !messages || !stage) {
+              if (!panel || !input || !form || !startersRegion || !messages || !scene) {
                 return {
                   missing: true,
                   pathname: window.location.pathname,
                 };
               }
 
-              const initialNodeCount = stage.querySelectorAll(".canvas-node").length;
+              const initialNodeCount = window.__workspaceBoardState?.nodes?.length || 0;
               document.getElementById("assistantCompanion")?.click();
 
               input.value = "请边总结边帮我整理画布。";
@@ -148,16 +155,26 @@ async function main() {
               const secondSnapshot = secondAssistantBody?.textContent?.trim() || "";
               const secondStartersState = startersRegion?.dataset?.state || "";
 
-              await wait(260);
-              const finalNodeCount = stage.querySelectorAll(".canvas-node").length;
-              const streamNode = [...stage.querySelectorAll(".canvas-node")].find((node) =>
+              let finalNodeCount = window.__workspaceBoardState?.nodes?.length || 0;
+              let streamNode = [...document.querySelectorAll(".workspace-canvas-app [data-workspace-node-id]")].find((node) =>
                 node.textContent.includes("Workspace stream node"),
               );
 
+              for (let index = 0; index < 10 && (!streamNode || finalNodeCount <= initialNodeCount); index += 1) {
+                await wait(120);
+                finalNodeCount = window.__workspaceBoardState?.nodes?.length || 0;
+                streamNode = [...document.querySelectorAll(".workspace-canvas-app [data-workspace-node-id]")].find((node) =>
+                  node.textContent.includes("Workspace stream node"),
+                );
+              }
+
               return {
                 missing: false,
+                routeMode: document.getElementById("canvasViewport")?.dataset?.workspaceMode || null,
                 firstSnapshot,
                 secondSnapshot,
+                finalSnapshot:
+                  messages.querySelector(".assistant-message.is-assistant:last-child .assistant-message-body")?.textContent?.trim() || "",
                 firstStartersState,
                 secondStartersState,
                 assistantMessageCount: messages.querySelectorAll(".assistant-message.is-assistant").length,
@@ -189,6 +206,10 @@ async function main() {
       throw new Error(`Workspace AI controls did not render on ${result.pathname}`);
     }
 
+    if (result.routeMode !== "hybrid") {
+      throw new Error(`Workspace AI streaming should run on the hybrid shell route. Got ${result.routeMode || "<none>"}`);
+    }
+
     if (result.assistantMessageCount < 2) {
       throw new Error(`Workspace AI should append a new assistant bubble when sending. Got ${result.assistantMessageCount}`);
     }
@@ -211,7 +232,7 @@ async function main() {
 
     if (result.finalNodeCount <= result.initialNodeCount || !result.hasStreamNode) {
       throw new Error(
-        `Workspace AI should still apply streamed operations. Initial nodes: ${result.initialNodeCount} Final nodes: ${result.finalNodeCount}`,
+        `Workspace AI should still apply streamed operations. Initial nodes: ${result.initialNodeCount} Final nodes: ${result.finalNodeCount} Final assistant text: ${result.finalSnapshot}`,
       );
     }
 
@@ -222,6 +243,7 @@ async function main() {
     if (server.exitCode === null) {
       server.kill("SIGKILL");
     }
+    rmSync(tempStudioDir, { recursive: true, force: true });
   }
 }
 

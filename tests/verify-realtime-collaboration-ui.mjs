@@ -121,21 +121,28 @@ async function main() {
     }
 
     const interaction = evalJson(`async () => {
-      const textarea = document.querySelector(".canvas-textarea[data-text-node]");
       const viewport = document.getElementById("canvasViewport");
-      if (!textarea || !viewport) {
-        return { ok: false, reason: "missing-canvas-target" };
+      const scene =
+        document.querySelector(".workspace-canvas-app .tl-canvas") ||
+        document.querySelector(".workspace-canvas-app .tl-container");
+      const textBody = document.querySelector(
+        '.workspace-canvas-app [data-workspace-node-id][data-node-type="text"] .workspace-tldraw-text-body',
+      );
+      const textCard = textBody?.closest?.("[data-workspace-node-id]");
+      if (!viewport || !scene || !textBody || !textCard) {
+        return { ok: false, reason: "missing-tldraw-target" };
       }
 
-      const targetId = textarea.dataset.textNode || null;
-      const rect = textarea.getBoundingClientRect();
+      const targetId = textCard.dataset.workspaceNodeId || null;
+      const rect = textCard.getBoundingClientRect();
       const clientX = rect.left + 24;
       const clientY = rect.top + 24;
 
-      viewport.dispatchEvent(
+      scene.dispatchEvent(
         new PointerEvent("pointermove", {
           bubbles: true,
           cancelable: true,
+          composed: true,
           clientX,
           clientY,
           pointerId: 7,
@@ -143,21 +150,30 @@ async function main() {
         }),
       );
 
-      textarea.dispatchEvent(
-        new PointerEvent("pointerdown", {
+      window.__workspaceAppBridge?.selectNodeIds?.(targetId ? [targetId] : []);
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+      textBody.dispatchEvent(
+        new MouseEvent("dblclick", {
           bubbles: true,
           cancelable: true,
           clientX,
           clientY,
-          pointerId: 7,
-          pointerType: "mouse",
           button: 0,
-          buttons: 1,
         }),
       );
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+      const textarea = targetId
+        ? document.querySelector(\`.workspace-canvas-app .canvas-textarea[data-text-node="\${targetId}"]\`)
+        : null;
+      if (!(textarea instanceof HTMLTextAreaElement)) {
+        return { ok: false, reason: "missing-tldraw-text-editor" };
+      }
 
       textarea.focus();
-      textarea.value = textarea.value + "\\nPresence test";
+      const descriptor = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value");
+      descriptor?.set?.call(textarea, textarea.value + "\\nPresence test");
       textarea.dispatchEvent(new Event("input", { bubbles: true }));
 
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -165,7 +181,7 @@ async function main() {
       return {
         ok: true,
         targetId,
-        selectedNodeId: document.querySelector(".canvas-node.is-selected")?.dataset?.id || null,
+        selectedNodeId: window.__workspaceApp?.pageSelectedNodeIds?.[0] || null,
         focused: document.activeElement === textarea,
       };
     }`).in(SESSION_B);
@@ -184,6 +200,7 @@ async function main() {
 
       for (let index = 0; index < 40; index += 1) {
         const result = {
+          routeMode: document.getElementById("canvasViewport")?.dataset?.workspaceMode || null,
           cursorCount: document.querySelectorAll(".collaboration-cursor").length,
           selectionCount: document.querySelectorAll(\`.collaboration-selection[data-node-id="\${targetId}"]\`).length,
           editingCount: document.querySelectorAll(\`.collaboration-editing-badge[data-node-id="\${targetId}"]\`).length,
@@ -198,12 +215,17 @@ async function main() {
       }
 
       return {
+        routeMode: document.getElementById("canvasViewport")?.dataset?.workspaceMode || null,
         cursorCount: document.querySelectorAll(".collaboration-cursor").length,
         selectionCount: document.querySelectorAll(\`.collaboration-selection[data-node-id="\${targetId}"]\`).length,
         editingCount: document.querySelectorAll(\`.collaboration-editing-badge[data-node-id="\${targetId}"]\`).length,
         remotePeerCount: window.__workspaceCollaboration?.remotePeerCount || 0,
       };
     }`).in(SESSION_A);
+
+    if (presence.routeMode !== "hybrid") {
+      throw new Error(`Plain workspace collaboration should run on the hybrid shell route. Got ${presence.routeMode || "<none>"}`);
+    }
 
     if (presence.cursorCount < 1) {
       throw new Error("Remote collaborator cursors should be rendered in the local workspace.");

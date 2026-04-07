@@ -100,6 +100,7 @@ export function focusAssistantInput(input) {
 
 function isBlockedShortcutTarget(target) {
   if (!target?.matches) return false;
+  if (target.matches("[data-clipboard-trap]")) return false;
 
   return target.matches(
     "textarea, input, select, button, a, summary, [contenteditable='true'], [role='button'], [role='textbox'], [role='listbox']",

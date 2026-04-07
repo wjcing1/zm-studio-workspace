@@ -1,15 +1,15 @@
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import process from "node:process";
 import {
   createProjectPrj002BaselineBoard,
   putProjectPrj002Board,
 } from "./helpers/workspace-project-prj002-baseline.mjs";
+import { startIsolatedWorkspaceServer } from "./helpers/isolated-workspace-server.mjs";
 
 const CODEX_HOME = process.env.CODEX_HOME || `${process.env.HOME}/.codex`;
 const PWCLI = `${CODEX_HOME}/skills/playwright/scripts/playwright_cli.sh`;
 const SESSION = `wwtks_${process.pid}_${Date.now().toString(36)}_${Math.floor(Math.random() * 1000)}`;
-const PORT = 4173;
-const PROJECT_URL = `http://127.0.0.1:${PORT}/workspace.html?codex-test-auth=1&workspace-engine=tldraw&project=PRJ-002`;
+const PROJECT_PATH = "/workspace.html?codex-test-auth=1&workspace-engine=tldraw&project=PRJ-002";
 
 function runPw(args) {
   return execFileSync(PWCLI, [`-s=${SESSION}`, ...args], {
@@ -27,47 +27,21 @@ function extractJsonResult(output) {
   return JSON.parse(match[1].trim());
 }
 
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitForServer(url, attempts = 30) {
-  for (let index = 0; index < attempts; index += 1) {
-    try {
-      const response = await fetch(url);
-      if (response.ok) return;
-    } catch {}
-    await wait(250);
-  }
-
-  throw new Error(`Server did not become ready at ${url}`);
-}
-
 async function main() {
-  let server = null;
+  let runtime = null;
 
   try {
     try {
       runPw(["kill-all"]);
     } catch {}
 
-    try {
-      await waitForServer(PROJECT_URL, 4);
-    } catch {
-      server = spawn("node", ["server.mjs"], {
-        cwd: process.cwd(),
-        env: {
-          ...process.env,
-          PORT: String(PORT),
-          MINIMAX_API_KEY: "",
-        },
-        stdio: "ignore",
-      });
+    runtime = await startIsolatedWorkspaceServer({
+      cwd: process.cwd(),
+      healthPath: PROJECT_PATH,
+    });
+    const PROJECT_URL = `http://127.0.0.1:${runtime.port}${PROJECT_PATH}`;
 
-      await waitForServer(PROJECT_URL);
-    }
-
-    await putProjectPrj002Board(PORT, createProjectPrj002BaselineBoard());
+    await putProjectPrj002Board(runtime.port, createProjectPrj002BaselineBoard());
     runPw(["open", PROJECT_URL]);
 
     const result = extractJsonResult(
@@ -189,13 +163,7 @@ async function main() {
       runPw(["kill-all"]);
     } catch {}
 
-    if (server) {
-      server.kill("SIGTERM");
-      await wait(300);
-      if (server.exitCode === null) {
-        server.kill("SIGKILL");
-      }
-    }
+    await runtime?.stop?.();
   }
 }
 

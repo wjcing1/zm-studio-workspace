@@ -58,16 +58,24 @@ setupWebApp();
 const APP_CSS_ID = "workspace-app-css";
 const APP_CSS_URL = "./scripts/generated/workspace/workspace-app.css";
 const APP_MODULE_URL = "./generated/workspace/workspace-app.js?v=" + Date.now();
-const WORKSPACE_ENGINE_MODE = new URL(window.location.href).searchParams.get("workspace-engine") || "compat";
-const IS_TLDRAW_PRIMARY_MODE = WORKSPACE_ENGINE_MODE === "tldraw";
+const WORKSPACE_ENGINE_MODE = new URL(window.location.href).searchParams.get("workspace-engine");
+const WORKSPACE_RUNTIME_MODE =
+  WORKSPACE_ENGINE_MODE === "compat" ? "compat" : WORKSPACE_ENGINE_MODE === "tldraw" ? "tldraw" : "hybrid";
+const IS_LEGACY_COMPAT_MODE = WORKSPACE_RUNTIME_MODE === "compat";
+const IS_HYBRID_SHELL_MODE = WORKSPACE_RUNTIME_MODE === "hybrid";
+const IS_TLDRAW_DEBUG_MODE = WORKSPACE_RUNTIME_MODE === "tldraw";
+const IS_TLDRAW_PRIMARY_MODE = !IS_LEGACY_COMPAT_MODE;
 
-// Tell the embedded tldraw app whether clipboard events should be handled by compat-mode handlers
-window.__workspaceClipboardMode = IS_TLDRAW_PRIMARY_MODE ? "tldraw" : "compat";
+window.__workspaceRuntimeMode = WORKSPACE_RUNTIME_MODE;
+
+// Tell the embedded tldraw app whether clipboard events should be handled by legacy compat handlers.
+window.__workspaceClipboardMode = IS_LEGACY_COMPAT_MODE ? "compat" : "tldraw";
 
 window.__workspaceApp = {
   engine: "tldraw",
   ready: false,
   status: "booting",
+  routeMode: WORKSPACE_RUNTIME_MODE,
   currentToolId: "select",
   pageSelectedNodeIds: [],
   pageSelectedEdgeIds: [],
@@ -118,6 +126,7 @@ async function mountWorkspaceEngine() {
     engine: "tldraw",
     ready: false,
     status: "mounting",
+    routeMode: WORKSPACE_RUNTIME_MODE,
     currentToolId: window.__workspaceApp?.currentToolId || "select",
     pageSelectedNodeIds: window.__workspaceApp?.pageSelectedNodeIds || [],
     pageSelectedEdgeIds: window.__workspaceApp?.pageSelectedEdgeIds || [],
@@ -232,6 +241,26 @@ const canvasConnections = document.getElementById("canvasConnections");
 const canvasStage = document.getElementById("canvasStage");
 const workspaceCanvasApp = document.getElementById("workspaceCanvasApp");
 
+function applyWorkspaceModeMarkers() {
+  if (canvasViewport) {
+    canvasViewport.dataset.workspaceMode = WORKSPACE_RUNTIME_MODE;
+  }
+  canvasViewport?.classList.toggle("is-tldraw-primary", IS_TLDRAW_PRIMARY_MODE);
+
+  if (workspaceCanvasApp) {
+    workspaceCanvasApp.dataset.workspaceEngine = IS_LEGACY_COMPAT_MODE ? "legacy-shell" : "tldraw";
+    workspaceCanvasApp.dataset.workspaceMode = WORKSPACE_RUNTIME_MODE;
+  }
+
+  if (!IS_LEGACY_COMPAT_MODE) {
+    canvasStage.innerHTML = "";
+    canvasConnections.innerHTML = "";
+    marqueeSelection.hidden = true;
+    marqueeSelection.style.width = "0px";
+    marqueeSelection.style.height = "0px";
+  }
+}
+
 // ── Miro-style clipboard trap ──────────────────────────────────────────────
 // Browsers only fire the `paste` event (with clipboardData.files populated)
 // when a *focusable, editable* element has focus.  A bare <div> canvas won't
@@ -333,8 +362,6 @@ const transientCanvasToolState = {
   spaceHandActive: false,
   restoreToolId: "select",
 };
-
-canvasViewport?.classList.toggle("is-tldraw-primary", IS_TLDRAW_PRIMARY_MODE);
 
 function syncWorkspaceApp(board = getActiveBoard()) {
   if (suppressNextWorkspaceAppSync) {
@@ -1310,82 +1337,86 @@ function renderCanvas() {
 
   renderCanvasContext(board);
 
-  canvasStage.style.transform = `translate(${board.camera.x}px, ${board.camera.y}px) scale(${board.camera.z})`;
-  canvasConnections.style.transform = `translate(${board.camera.x}px, ${board.camera.y}px) scale(${board.camera.z})`;
   canvasGrid.style.backgroundSize = `${40 * board.camera.z}px ${40 * board.camera.z}px`;
   canvasGrid.style.backgroundPosition = `${board.camera.x}px ${board.camera.y}px`;
   canvasGrid.style.setProperty("--dot-size", `${clamp(board.camera.z * 1.3, 0.8, 1.8)}px`);
   zoomValue.textContent = `${Math.round(board.camera.z * 100)}%`;
 
-  const bounds = computeBoardBounds(board.nodes);
-  canvasStage.style.width = `${bounds.width}px`;
-  canvasStage.style.height = `${bounds.height}px`;
-  canvasConnections.setAttribute("width", String(bounds.width));
-  canvasConnections.setAttribute("height", String(bounds.height));
-  canvasConnections.setAttribute("viewBox", `0 0 ${bounds.width} ${bounds.height}`);
+  if (IS_LEGACY_COMPAT_MODE) {
+    canvasStage.style.transform = `translate(${board.camera.x}px, ${board.camera.y}px) scale(${board.camera.z})`;
+    canvasConnections.style.transform = `translate(${board.camera.x}px, ${board.camera.y}px) scale(${board.camera.z})`;
 
-  const nodesById = new Map(board.nodes.map((node) => [node.id, node]));
-  canvasConnections.innerHTML = [
-    ...board.edges.map((edge) => {
-      const fromNode = nodesById.get(edge.from);
-      const toNode = nodesById.get(edge.to);
-      if (!fromNode || !toNode) return "";
+    const bounds = computeBoardBounds(board.nodes);
+    canvasStage.style.width = `${bounds.width}px`;
+    canvasStage.style.height = `${bounds.height}px`;
+    canvasConnections.setAttribute("width", String(bounds.width));
+    canvasConnections.setAttribute("height", String(bounds.height));
+    canvasConnections.setAttribute("viewBox", `0 0 ${bounds.width} ${bounds.height}`);
 
-      const className = ["canvas-edge", state.ui.selectedEdgeId === edge.id ? "is-selected" : ""]
-        .filter(Boolean)
-        .join(" ");
-      const d = buildConnectionPath(edge, fromNode, toNode);
-      // Invisible wider hitarea path for easier clicking, plus the visible path
-      return `<path class="canvas-edge-hitarea" data-edge-id="${edge.id}" d="${d}"></path><path class="${className}" data-edge-id="${edge.id}" d="${d}"></path>`;
-    }),
-    renderDraftEdge(board),
-  ].join("");
+    const nodesById = new Map(board.nodes.map((node) => [node.id, node]));
+    canvasConnections.innerHTML = [
+      ...board.edges.map((edge) => {
+        const fromNode = nodesById.get(edge.from);
+        const toNode = nodesById.get(edge.to);
+        if (!fromNode || !toNode) return "";
 
-  canvasStage.innerHTML = board.nodes
-    .map((node) => {
-      const height = node.h === "auto" ? `${resolveNodeHeight(node)}px` : `${node.h}px`;
-      const style = `left:${node.x}px;top:${node.y}px;width:${node.w}px;height:${height};`;
-      const isSelected = state.selection.nodeIds.includes(node.id);
-      const isHovered = state.ui.hoveredNodeId === node.id;
-      const isAiContext = state.assistant.contextNodeIds.includes(node.id);
-      const className = [
-        "canvas-node",
-        ...(node.type === "image" ? ["image-node"] : ["card"]),
-        isSelected ? "is-selected" : "",
-        isHovered ? "is-hovered" : "",
-        isAiContext ? "is-ai-context" : "",
-      ]
-        .filter(Boolean)
-        .join(" ");
+        const className = ["canvas-edge", state.ui.selectedEdgeId === edge.id ? "is-selected" : ""]
+          .filter(Boolean)
+          .join(" ");
+        const d = buildConnectionPath(edge, fromNode, toNode);
+        // Invisible wider hitarea path for easier clicking, plus the visible path
+        return `<path class="canvas-edge-hitarea" data-edge-id="${edge.id}" d="${d}"></path><path class="${className}" data-edge-id="${edge.id}" d="${d}"></path>`;
+      }),
+      renderDraftEdge(board),
+    ].join("");
 
-      const contextMode = escapeHtml(state.canvasContext.mode);
+    canvasStage.innerHTML = board.nodes
+      .map((node) => {
+        const height = node.h === "auto" ? `${resolveNodeHeight(node)}px` : `${node.h}px`;
+        const style = `left:${node.x}px;top:${node.y}px;width:${node.w}px;height:${height};`;
+        const isSelected = state.selection.nodeIds.includes(node.id);
+        const isHovered = state.ui.hoveredNodeId === node.id;
+        const isAiContext = state.assistant.contextNodeIds.includes(node.id);
+        const className = [
+          "canvas-node",
+          ...(node.type === "image" ? ["image-node"] : ["card"]),
+          isSelected ? "is-selected" : "",
+          isHovered ? "is-hovered" : "",
+          isAiContext ? "is-ai-context" : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
 
-      if (node.type === "text") {
-        return renderTextNode(node, className, style, contextMode, isSelected, isHovered);
-      }
+        const contextMode = escapeHtml(state.canvasContext.mode);
 
-      if (node.type === "project") {
-        return renderProjectNode(node, className, style, contextMode, isSelected, isHovered);
-      }
+        if (node.type === "text") {
+          return renderTextNode(node, className, style, contextMode, isSelected, isHovered);
+        }
 
-      if (node.type === "link") {
-        return renderLinkNode(node, className, style, contextMode, isSelected, isHovered);
-      }
+        if (node.type === "project") {
+          return renderProjectNode(node, className, style, contextMode, isSelected, isHovered);
+        }
 
-      if (node.type === "group") {
-        return renderGroupNode(node, className, style, contextMode, isSelected, isHovered);
-      }
+        if (node.type === "link") {
+          return renderLinkNode(node, className, style, contextMode, isSelected, isHovered);
+        }
 
-      if (node.type === "file") {
-        return renderFileNode(node, className, style, contextMode, isSelected, isHovered);
-      }
+        if (node.type === "group") {
+          return renderGroupNode(node, className, style, contextMode, isSelected, isHovered);
+        }
 
-      return renderImageNode(node, className, style, contextMode, isSelected, isHovered);
-    })
-    .join("");
+        if (node.type === "file") {
+          return renderFileNode(node, className, style, contextMode, isSelected, isHovered);
+        }
 
-  syncRenderedTextNodeHeights(board);
-  renderMarqueeSelection();
+        return renderImageNode(node, className, style, contextMode, isSelected, isHovered);
+      })
+      .join("");
+
+    syncRenderedTextNodeHeights(board);
+    renderMarqueeSelection();
+  }
+
   renderCollaborationPresence(board);
   renderAssistantContext();
   flushPendingEditorFocus();
@@ -1631,6 +1662,10 @@ function releaseCanvasPointerCapture(pointerId) {
 
 function canStartTouchGesture() {
   return !state.interaction.mode || state.interaction.mode === "marquee" || state.interaction.mode === "pan";
+}
+
+function shouldUseSyntheticTouchGestureFallback(event) {
+  return IS_TLDRAW_PRIMARY_MODE && event?.pointerType === "touch" && event.isTrusted === false;
 }
 
 function beginTouchGestureInteraction() {
@@ -2771,7 +2806,7 @@ assistantComposer?.addEventListener("submit", (event) => {
 });
 
 canvasViewport.addEventListener("pointermove", (event) => {
-  if (IS_TLDRAW_PRIMARY_MODE) {
+  if (IS_TLDRAW_PRIMARY_MODE && !shouldUseSyntheticTouchGestureFallback(event)) {
     syncPointer(event.clientX, event.clientY, event.target);
     return;
   }
@@ -2896,7 +2931,7 @@ canvasViewport.addEventListener("pointermove", (event) => {
 });
 
 canvasViewport.addEventListener("pointerdown", (event) => {
-  if (IS_TLDRAW_PRIMARY_MODE) {
+  if (IS_TLDRAW_PRIMARY_MODE && !shouldUseSyntheticTouchGestureFallback(event)) {
     syncPointer(event.clientX, event.clientY, event.target);
     return;
   }
@@ -3056,7 +3091,7 @@ canvasViewport.addEventListener("pointerdown", (event) => {
 });
 
 canvasViewport.addEventListener("pointerup", (event) => {
-  if (IS_TLDRAW_PRIMARY_MODE) {
+  if (IS_TLDRAW_PRIMARY_MODE && !shouldUseSyntheticTouchGestureFallback(event)) {
     return;
   }
 
@@ -3108,7 +3143,7 @@ canvasViewport.addEventListener("pointerup", (event) => {
 });
 
 canvasViewport.addEventListener("pointercancel", (event) => {
-  if (IS_TLDRAW_PRIMARY_MODE) {
+  if (IS_TLDRAW_PRIMARY_MODE && !shouldUseSyntheticTouchGestureFallback(event)) {
     return;
   }
 
@@ -3356,7 +3391,7 @@ window.addEventListener("keydown", (event) => {
   const isSpaceShortcut = event.code === "Space" || event.key === " " || event.key === "Spacebar";
   const isToolShortcut = event.code === "KeyC" || event.code === "KeyH" || event.code === "KeyV";
 
-  if (IS_TLDRAW_PRIMARY_MODE) {
+  if (IS_TLDRAW_DEBUG_MODE) {
     if (isTypingTarget) {
       return;
     }
@@ -3562,6 +3597,7 @@ window.addEventListener("workspace-app:selection-change", (event) => {
   });
   window.__workspaceApp = {
     ...(window.__workspaceApp || {}),
+    routeMode: WORKSPACE_RUNTIME_MODE,
     pageSelectedNodeIds: nodeIds,
     pageSelectedEdgeIds: edgeIds,
   };
@@ -3791,6 +3827,7 @@ mountWorkspaceEngine().catch((error) => {
     engine: "tldraw",
     ready: false,
     status: "error",
+    routeMode: WORKSPACE_RUNTIME_MODE,
     error: error instanceof Error ? error.message : "Unable to mount Workspace app.",
     currentToolId: "select",
     pageSelectedNodeIds: window.__workspaceApp?.pageSelectedNodeIds || [],
@@ -3801,6 +3838,7 @@ mountWorkspaceEngine().catch((error) => {
 });
 
 applyInitialRoute();
+applyWorkspaceModeMarkers();
 syncRoute();
 renderAssistantThread();
 renderCollaborationStatus();

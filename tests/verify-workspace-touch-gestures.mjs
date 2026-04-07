@@ -56,6 +56,7 @@ async function main() {
             y: Math.round(rect.top + rect.height * 0.62),
           };
           const readCamera = () => structuredClone(window.__workspaceBoardState?.camera || null);
+          const isContextCollapsed = () => viewport.classList.contains("is-context-collapsed");
 
           function flush() {
             return new Promise((resolve) => setTimeout(resolve, 180));
@@ -91,14 +92,17 @@ async function main() {
           }
 
           const before = readCamera();
+          const contextBefore = isContextCollapsed();
 
           fireWheel({ deltaX: 96, deltaY: 72 });
           await flush();
           const afterWheelPan = readCamera();
+          const contextAfterWheelPan = isContextCollapsed();
 
           fireWheel({ deltaY: -140, ctrlKey: true });
           await flush();
           const afterWheelPinch = readCamera();
+          const contextAfterWheelPinch = isContextCollapsed();
 
           fireTouch("pointerdown", focusPoint.x - 60, focusPoint.y - 20, 11);
           fireTouch("pointerdown", focusPoint.x + 60, focusPoint.y + 24, 12);
@@ -108,15 +112,20 @@ async function main() {
           fireTouch("pointerup", focusPoint.x + 118, focusPoint.y + 38, 12, 0);
           await flush();
           const afterTouchGesture = readCamera();
+          const contextAfterTouchGesture = isContextCollapsed();
 
           return {
             ok: true,
             routeMode: viewport.dataset.workspaceMode || null,
             focusPoint,
             before,
+            contextBefore,
             afterWheelPan,
+            contextAfterWheelPan,
             afterWheelPinch,
+            contextAfterWheelPinch,
             afterTouchGesture,
+            contextAfterTouchGesture,
           };
         }`,
       ]),
@@ -152,6 +161,17 @@ async function main() {
     if (!touchGestureChangedZoom) {
       throw new Error(
         `Two-touch pointer gestures should change zoom. After wheel pinch: ${JSON.stringify(result.afterWheelPinch)} After touch: ${JSON.stringify(result.afterTouchGesture)}`,
+      );
+    }
+
+    if (
+      result.contextBefore ||
+      result.contextAfterWheelPan ||
+      result.contextAfterWheelPinch ||
+      result.contextAfterTouchGesture
+    ) {
+      throw new Error(
+        `Overview context should stay visible during passive pan/zoom gestures. States: before=${result.contextBefore} wheelPan=${result.contextAfterWheelPan} wheelPinch=${result.contextAfterWheelPinch} touch=${result.contextAfterTouchGesture}`,
       );
     }
 

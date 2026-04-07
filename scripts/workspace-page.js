@@ -1710,9 +1710,6 @@ function updateTouchGestureInteraction() {
   const nextY = localY - gesture.centerWorld.y * nextZoom;
 
   if (nextX !== board.camera.x || nextY !== board.camera.y || nextZoom !== board.camera.z) {
-    if ((nextX !== board.camera.x || nextY !== board.camera.y) && !state.ui.isContextCollapsed) {
-      collapseCanvasContext();
-    }
     board.camera.x = nextX;
     board.camera.y = nextY;
     board.camera.z = nextZoom;

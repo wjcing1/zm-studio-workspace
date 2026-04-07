@@ -48,6 +48,9 @@ async function main() {
           await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
           const viewport = document.getElementById("canvasViewport");
           const workspaceCanvasApp = document.getElementById("workspaceCanvasApp");
+          const tlBackground = document.querySelector(".workspace-canvas-app .tl-background");
+          const firstNode = document.querySelector(".workspace-canvas-app [data-workspace-node-id]");
+          const firstNodeShell = firstNode?.querySelector(".workspace-tldraw-card-shell");
           return {
             routeMode: viewport?.dataset?.workspaceMode || null,
             hasDebugApp: Boolean(window.__workspaceApp),
@@ -58,6 +61,11 @@ async function main() {
             hasTldrawMount: Boolean(document.querySelector(".tl-canvas, .tl-container, [data-workspace-engine='tldraw']")),
             hasToolbar: Boolean(document.getElementById("canvasToolbar")),
             hasAssistantPanel: Boolean(document.getElementById("workspaceAssistantPanel")),
+            backgroundColor: tlBackground ? getComputedStyle(tlBackground).backgroundColor : null,
+            firstNodeClass: firstNode?.className || null,
+            firstNodeBackground: firstNode ? getComputedStyle(firstNode).backgroundColor : null,
+            firstNodeBorderRadius: firstNode ? getComputedStyle(firstNode).borderRadius : null,
+            firstNodeShellBorderRadius: firstNodeShell ? getComputedStyle(firstNodeShell).borderRadius : null,
           };
         }`,
       ]),
@@ -89,6 +97,22 @@ async function main() {
 
     if (!hybridResult.hasToolbar || !hybridResult.hasAssistantPanel) {
       throw new Error("Workspace page should preserve the existing toolbar and assistant shell markers.");
+    }
+
+    if (hybridResult.backgroundColor === "rgb(249, 250, 251)") {
+      throw new Error("Hybrid workspace should not let tldraw restore the default light canvas background.");
+    }
+
+    if (hybridResult.firstNodeBackground !== "rgba(0, 0, 0, 0)") {
+      throw new Error(
+        `Hybrid workspace should render tldraw cards without an extra outer rectangle fill. Got ${hybridResult.firstNodeBackground || "<none>"}`,
+      );
+    }
+
+    if (hybridResult.firstNodeBorderRadius !== hybridResult.firstNodeShellBorderRadius) {
+      throw new Error(
+        `Hybrid workspace outer node shell should match the rounded card shell. Outer: ${hybridResult.firstNodeBorderRadius || "<none>"} Inner: ${hybridResult.firstNodeShellBorderRadius || "<none>"}`,
+      );
     }
 
     extractJsonResult(

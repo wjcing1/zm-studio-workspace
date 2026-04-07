@@ -1087,16 +1087,16 @@ class ZmCardShapeUtil extends BaseBoxShapeUtil<ZmCardShape> {
       node.type === "group"
         ? "group-node"
         : node.type === "file"
-          ? "file-node card"
+          ? "file-node"
           : node.type === "link"
-            ? "link-node card"
+            ? "link-node"
             : node.type === "project"
-              ? "card"
-              : "card";
+              ? "project-node"
+              : "text-node";
 
     return (
       <WorkspaceCardContainer node={node} variantClass={variantClass}>
-          {renderNodeBody(shape, node)}
+        {renderNodeBody(shape, node)}
       </WorkspaceCardContainer>
     );
   }

@@ -2419,10 +2419,39 @@ async function uploadWorkspaceFile(file, boardKey) {
   return payload.upload;
 }
 
-function createFileNodeFromUpload(upload, worldPoint, index = 0) {
+function createFileNodeFromUpload(upload, worldPoint, index = 0, intrinsicSize = null) {
   const fileKind = upload.fileKind || "other";
-  const width = fileKind === "pdf" ? 360 : 340;
-  const height = fileKind === "pdf" ? 420 : fileKind === "image" ? 280 : 188;
+  // The file node has header (drag handle 22px + title ~55px) and footer (meta ~48px)
+  // that take space outside the image preview area.
+  const NODE_CHROME_HEIGHT = 125;
+
+  let width, height;
+  if (fileKind === "image" && intrinsicSize && intrinsicSize.w > 0 && intrinsicSize.h > 0) {
+    // Preserve the real image aspect ratio, capped to a reasonable canvas size
+    const MAX_W = 400;
+    const MAX_PREVIEW_H = 500;
+    const ratio = intrinsicSize.w / intrinsicSize.h;
+    width = Math.min(intrinsicSize.w, MAX_W);
+    let previewH = Math.round(width / ratio);
+    if (previewH > MAX_PREVIEW_H) {
+      previewH = MAX_PREVIEW_H;
+      width = Math.round(previewH * ratio);
+    }
+    // Minimum size
+    width = Math.max(width, 180);
+    previewH = Math.max(previewH, 80);
+    height = previewH + NODE_CHROME_HEIGHT;
+  } else if (fileKind === "pdf") {
+    width = 360;
+    height = 420;
+  } else if (fileKind === "image") {
+    // Fallback if dimensions couldn't be probed
+    width = 340;
+    height = 280;
+  } else {
+    width = 340;
+    height = 188;
+  }
 
   return createCanvasNode("file", {
     x: Math.round(worldPoint.x - width / 2 + index * 26),
@@ -2435,6 +2464,31 @@ function createFileNodeFromUpload(upload, worldPoint, index = 0) {
     mimeType: upload.mimeType || "",
     fileKind,
     size: typeof upload.size === "number" ? upload.size : undefined,
+  });
+}
+
+/**
+ * Load an image URL and return its natural dimensions.
+ * Returns { w, h } or null if the image fails to load.
+ */
+function probeImageDimensions(url, timeoutMs = 5000) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const timer = setTimeout(() => {
+      img.onload = null;
+      img.onerror = null;
+      resolve(null);
+    }, timeoutMs);
+
+    img.onload = () => {
+      clearTimeout(timer);
+      resolve({ w: img.naturalWidth || img.width, h: img.naturalHeight || img.height });
+    };
+    img.onerror = () => {
+      clearTimeout(timer);
+      resolve(null);
+    };
+    img.src = url;
   });
 }
 
@@ -2459,8 +2513,17 @@ async function insertFileNodes(files, options = {}) {
 
   if (uploads.length === 0) return;
 
+  // Probe real image dimensions so nodes match the actual aspect ratio
+  const dimensions = await Promise.all(
+    uploads.map((upload) =>
+      upload.fileKind === "image" && upload.url ? probeImageDimensions(upload.url) : null
+    )
+  );
+
   pushBoardHistory(board);
-  const createdNodes = uploads.map((upload, index) => createFileNodeFromUpload(upload, worldPoint, index));
+  const createdNodes = uploads.map((upload, index) =>
+    createFileNodeFromUpload(upload, worldPoint, index, dimensions[index])
+  );
   board.nodes.push(...createdNodes);
   persistActiveBoard();
   setSelectedNodes(createdNodes.map((node) => node.id));

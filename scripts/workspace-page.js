@@ -57,9 +57,12 @@ setupWebApp();
 
 const APP_CSS_ID = "workspace-app-css";
 const APP_CSS_URL = "./scripts/generated/workspace/workspace-app.css";
-const APP_MODULE_URL = "./generated/workspace/workspace-app.js";
+const APP_MODULE_URL = "./generated/workspace/workspace-app.js?v=" + Date.now();
 const WORKSPACE_ENGINE_MODE = new URL(window.location.href).searchParams.get("workspace-engine") || "compat";
 const IS_TLDRAW_PRIMARY_MODE = WORKSPACE_ENGINE_MODE === "tldraw";
+
+// Tell the embedded tldraw app whether clipboard events should be handled by compat-mode handlers
+window.__workspaceClipboardMode = IS_TLDRAW_PRIMARY_MODE ? "tldraw" : "compat";
 
 window.__workspaceApp = {
   engine: "tldraw",
@@ -227,6 +230,61 @@ const canvasGrid = document.getElementById("canvasGrid");
 const canvasConnections = document.getElementById("canvasConnections");
 const canvasStage = document.getElementById("canvasStage");
 const workspaceCanvasApp = document.getElementById("workspaceCanvasApp");
+
+// ── Miro-style clipboard trap ──────────────────────────────────────────────
+// Browsers only fire the `paste` event (with clipboardData.files populated)
+// when a *focusable, editable* element has focus.  A bare <div> canvas won't
+// trigger it, which is why Cmd+V from Finder silently does nothing.
+// Miro solves this with a tiny off-screen contenteditable div that is always
+// focused when the canvas surface itself is active.  We replicate that here.
+const clipboardTrap = (() => {
+  const el = document.createElement("div");
+  el.setAttribute("contenteditable", "true");
+  el.setAttribute("data-clipboard-trap", "true");
+  el.setAttribute("aria-hidden", "true");
+  el.setAttribute("tabindex", "-1");
+  Object.assign(el.style, {
+    position: "fixed",
+    left: "-9999px",
+    top: "-9999px",
+    width: "1px",
+    height: "1px",
+    opacity: "0",
+    pointerEvents: "none",
+    overflow: "hidden",
+    whiteSpace: "pre",
+    // prevent any layout shift
+    contain: "strict",
+  });
+  // Insert into canvasViewport so it lives inside the canvas DOM subtree
+  if (canvasViewport) {
+    canvasViewport.appendChild(el);
+  } else {
+    document.body.appendChild(el);
+  }
+  return el;
+})();
+
+/**
+ * Focus the clipboard trap so that the next Cmd+V / Cmd+C produces a real
+ * ClipboardEvent with clipboardData populated (including .files from Finder).
+ * Only steals focus when no other editable field is active.
+ */
+function focusClipboardTrap() {
+  const active = document.activeElement;
+  // Don't steal focus from real inputs / textareas / contenteditable fields
+  if (
+    active &&
+    active !== document.body &&
+    active !== clipboardTrap &&
+    active.matches("textarea, input, [contenteditable='true']:not([data-clipboard-trap])")
+  ) {
+    return;
+  }
+  // Clear any leftover text so it doesn't interfere with paste data
+  clipboardTrap.textContent = "\u200B"; // zero-width space keeps caret alive
+  clipboardTrap.focus({ preventScroll: true });
+}
 const collaborationPresenceLayer = document.getElementById("collaborationPresenceLayer");
 const canvasBreadcrumb = document.getElementById("canvasBreadcrumb");
 const canvasContextKicker = document.getElementById("canvasContextKicker");
@@ -1275,7 +1333,9 @@ function renderCanvas() {
       const className = ["canvas-edge", state.ui.selectedEdgeId === edge.id ? "is-selected" : ""]
         .filter(Boolean)
         .join(" ");
-      return `<path class="${className}" data-edge-id="${edge.id}" d="${buildConnectionPath(edge, fromNode, toNode)}"></path>`;
+      const d = buildConnectionPath(edge, fromNode, toNode);
+      // Invisible wider hitarea path for easier clicking, plus the visible path
+      return `<path class="canvas-edge-hitarea" data-edge-id="${edge.id}" d="${d}"></path><path class="${className}" data-edge-id="${edge.id}" d="${d}"></path>`;
     }),
     renderDraftEdge(board),
   ].join("");
@@ -1804,6 +1864,36 @@ function copySelection() {
     nodes: cloneValue(selectedNodes),
     edges: cloneValue(board.edges.filter((edge) => selectedIds.has(edge.from) && selectedIds.has(edge.to))),
   };
+
+  // Also write to system clipboard so content can be pasted externally
+  const textParts = selectedNodes.map((node) => {
+    if (node.type === "link") return [node.title || "Reference link", node.url || node.content || ""].filter(Boolean).join("\n");
+    if (node.type === "group") return node.label || "Cluster";
+    if (node.type === "file") return [node.title || "Attachment", node.file || node.content || ""].filter(Boolean).join("\n");
+    if (node.type === "project") return [node.title || "", node.desc || node.content || ""].filter(Boolean).join("\n");
+    return node.content || node.title || "";
+  });
+  const plainText = textParts.join("\n\n").trim() || " ";
+  const clipboardPayload = JSON.stringify({
+    __zmWorkspaceClipboard: true,
+    nodes: cloneValue(selectedNodes),
+    edges: cloneValue(board.edges.filter((edge) => selectedIds.has(edge.from) && selectedIds.has(edge.to))),
+  });
+  const htmlContent = `<div data-zm-workspace-clipboard="${encodeURIComponent(clipboardPayload)}"><pre>${escapeHtml(plainText)}</pre></div>`;
+
+  try {
+    const clipboard = window.navigator?.clipboard;
+    if (clipboard && typeof clipboard.write === "function" && typeof ClipboardItem !== "undefined") {
+      clipboard.write([
+        new ClipboardItem({
+          "text/plain": new Blob([plainText], { type: "text/plain" }),
+          "text/html": new Blob([htmlContent], { type: "text/html" }),
+        }),
+      ]).catch(() => {});
+    } else if (clipboard && typeof clipboard.writeText === "function") {
+      clipboard.writeText(plainText).catch(() => {});
+    }
+  } catch {}
 }
 
 function pasteSelection() {
@@ -1835,6 +1925,210 @@ function pasteSelection() {
   persistActiveBoard();
   setSelectedNodes(createdNodes.map((node) => node.id));
 }
+
+function normalizeClipboardTextCompat(value) {
+  return String(value || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+}
+
+function normalizeClipboardUrlCompat(value) {
+  const trimmed = normalizeClipboardTextCompat(value);
+  if (!trimmed) return null;
+  try {
+    const nextUrl = trimmed.startsWith("www.") ? `https://${trimmed}` : trimmed;
+    const parsed = new URL(nextUrl);
+    if (!/^https?:$/i.test(parsed.protocol)) return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function parseZmWorkspaceClipboardFromHtml(html) {
+  if (!html) return null;
+  try {
+    const match = html.match(/data-zm-workspace-clipboard="([^"]*)"/i);
+    if (!match) return null;
+    const decoded = decodeURIComponent(match[1]);
+    const parsed = JSON.parse(decoded);
+    if (parsed?.__zmWorkspaceClipboard && Array.isArray(parsed.nodes)) {
+      return parsed;
+    }
+  } catch {}
+  return null;
+}
+
+/**
+ * Convert an image file (e.g., TIFF from macOS Finder) to PNG using canvas.
+ * Browsers can decode TIFF into an Image element but cannot display them in <img> tags.
+ * This mimics how Miro converts clipboard images to web-compatible formats.
+ */
+function convertImageFileToPng(file) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth || img.width;
+        canvas.height = img.naturalHeight || img.height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0);
+        canvas.toBlob(
+          (blob) => {
+            URL.revokeObjectURL(url);
+            if (blob) {
+              const pngFile = new File([blob], file.name.replace(/\.\w+$/, ".png") || `paste-${Date.now()}.png`, {
+                type: "image/png",
+              });
+              resolve(pngFile);
+            } else {
+              // Conversion failed, return original
+              resolve(file);
+            }
+          },
+          "image/png",
+          1.0,
+        );
+      } catch {
+        URL.revokeObjectURL(url);
+        resolve(file);
+      }
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      // If the browser can't decode the image, return original
+      resolve(file);
+    };
+
+    img.src = url;
+  });
+}
+
+function pasteExternalTextCompat(text) {
+  const normalizedText = normalizeClipboardTextCompat(text);
+  if (!normalizedText) return;
+
+  const board = getActiveBoard();
+  pushBoardHistory(board);
+
+  // Use viewport center for consistent positioning; snap to 20px grid
+  const center = getCanvasViewportCenterWorldPoint();
+  const baseX = Math.round((center.x) / 20) * 20;
+  const baseY = Math.round((center.y) / 20) * 20;
+  const url = normalizeClipboardUrlCompat(normalizedText);
+
+  let node;
+  if (url) {
+    node = createCanvasNode("link", {
+      x: baseX - 160,
+      y: baseY - 85,
+      w: 320,
+      h: 170,
+      title: url,
+      url,
+      content: url,
+    });
+  } else {
+    node = createCanvasNode("text", {
+      x: baseX - 140,
+      y: baseY - 80,
+      w: 280,
+      h: "auto",
+      content: normalizedText,
+    });
+  }
+
+  board.nodes.push(node);
+  persistActiveBoard();
+  setSelectedNodes([node.id]);
+}
+
+async function pasteFromSystemClipboardCompat() {
+  const clipboard = window.navigator?.clipboard;
+  if (!clipboard) {
+    pasteSelection();
+    return;
+  }
+
+  try {
+    if (typeof clipboard.read === "function") {
+      const items = await clipboard.read();
+      if (Array.isArray(items) && items.length > 0) {
+        // FIRST PASS: Check for files/images across ALL items before checking text
+        // This is critical because copying a file from Finder puts both
+        // the filename (as text) and file data in the clipboard.
+        const collectedFiles = [];
+        for (const item of items) {
+          const fileTypes = item.types.filter((type) => type.startsWith("image/") || type === "application/pdf");
+          for (const fileType of fileTypes) {
+            try {
+              const blob = await item.getType(fileType);
+              const ext = fileType.split("/")[1] || "bin";
+              collectedFiles.push(new File([blob], `paste-${Date.now()}-${collectedFiles.length}.${ext}`, { type: fileType }));
+            } catch {}
+          }
+        }
+        if (collectedFiles.length > 0) {
+          await handleCanvasFiles(collectedFiles, { worldPoint: { x: state.pointer.worldX || 180, y: state.pointer.worldY || 180 } });
+          return;
+        }
+
+        // SECOND PASS: Check for workspace clipboard data or text
+        for (const item of items) {
+          const htmlType = item.types.find((type) => type === "text/html");
+          if (htmlType) {
+            const htmlBlob = await item.getType(htmlType);
+            const html = await htmlBlob.text();
+            const zmPayload = parseZmWorkspaceClipboardFromHtml(html);
+            if (zmPayload) {
+              state.selection.clipboard = {
+                nodes: cloneValue(zmPayload.nodes),
+                edges: cloneValue(zmPayload.edges || []),
+              };
+              pasteSelection();
+              return;
+            }
+
+            const extractedText = normalizeClipboardTextCompat(
+              new DOMParser().parseFromString(html, "text/html").body.textContent || ""
+            );
+            if (extractedText) {
+              pasteExternalTextCompat(extractedText);
+              return;
+            }
+          }
+
+          const plainTextType = item.types.find((type) => type === "text/plain");
+          if (plainTextType) {
+            const textBlob = await item.getType(plainTextType);
+            const pastedText = normalizeClipboardTextCompat(await textBlob.text());
+            if (pastedText) {
+              pasteExternalTextCompat(pastedText);
+              return;
+            }
+          }
+        }
+      }
+    }
+
+    // Fallback: try readText
+    if (typeof clipboard.readText === "function") {
+      const pastedText = normalizeClipboardTextCompat(await clipboard.readText());
+      if (pastedText) {
+        pasteExternalTextCompat(pastedText);
+        return;
+      }
+    }
+  } catch (error) {
+    console.error("Unable to read from system clipboard.", error);
+  }
+
+  // Final fallback: use internal clipboard
+  pasteSelection();
+}
+
 
 function resetView() {
   const board = getActiveBoard();
@@ -2099,12 +2393,16 @@ async function handleImportFile(file) {
 async function uploadWorkspaceFile(file, boardKey) {
   const config = await getCollaborationConfig();
   const endpoint = config?.endpoints?.uploads || "/api/uploads";
+  // HTTP headers only support ISO-8859-1 characters.
+  // macOS produces filenames with non-ASCII chars (e.g. 截屏 in Chinese screenshots).
+  // URL-encode the filename to safely pass it through the header.
+  const safeFileName = encodeURIComponent(file.name || "upload.bin");
   const response = await fetch(endpoint, {
     method: "POST",
     headers: {
       "content-type": file.type || "application/octet-stream",
       "x-board-key": boardKey,
-      "x-file-name": file.name || "upload.bin",
+      "x-file-name": safeFileName,
     },
     body: file,
   });
@@ -2141,7 +2439,8 @@ function createFileNodeFromUpload(upload, worldPoint, index = 0) {
 }
 
 async function insertFileNodes(files, options = {}) {
-  const attachments = Array.from(files || []).filter((file) => file && typeof file.name === "string" && file.name);
+  // Accept files even if name is empty (macOS clipboard can produce unnamed files)
+  const attachments = Array.from(files || []).filter((file) => file && file.size > 0);
   if (attachments.length === 0) return;
 
   const board = getActiveBoard();
@@ -2165,6 +2464,7 @@ async function insertFileNodes(files, options = {}) {
   board.nodes.push(...createdNodes);
   persistActiveBoard();
   setSelectedNodes(createdNodes.map((node) => node.id));
+  renderCanvas();
 }
 
 async function handleCanvasFiles(files, options = {}) {
@@ -2455,6 +2755,12 @@ canvasViewport.addEventListener("pointerdown", (event) => {
   if (event.target.closest("#workspaceAssistantPanel")) return;
   if (event.target.closest("[data-open-project]")) return;
   if (event.target.closest("[data-node-action]")) return;
+
+  // Miro-style: focus the clipboard trap whenever the canvas surface is clicked
+  // so that the next Cmd+V fires a real paste event with clipboardData.files
+  if (!event.target.matches("textarea, input, [contenteditable='true']:not([data-clipboard-trap])")) {
+    focusClipboardTrap();
+  }
 
   if (event.pointerType === "touch") {
     setTouchPoint(event.pointerId, event.clientX, event.clientY);
@@ -2811,6 +3117,8 @@ function handleInlineEditorFocusOut(event) {
   scheduleLocalPresenceSync({
     editing: null,
   });
+  // Re-focus clipboard trap so Cmd+V works immediately after leaving an editor
+  requestAnimationFrame(() => focusClipboardTrap());
 }
 
 function handleInlineEditorInput(event) {
@@ -2943,8 +3251,12 @@ window.addEventListener("keydown", (event) => {
       }
 
       if (loweredKey === "v") {
-        event.preventDefault();
-        void window.__workspaceAppBridge?.pasteFromClipboard?.();
+        // Miro-style: do NOT preventDefault here.
+        // Instead, let the native paste event fire so our capture-phase
+        // paste handler can read clipboardData.files for Finder files.
+        // For non-file content, the tldraw bridge paste will be called
+        // from the paste handler if no files are found.
+        focusClipboardTrap();
         return;
       }
     }
@@ -2986,14 +3298,19 @@ window.addEventListener("keydown", (event) => {
   }
 
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "c") {
-    event.preventDefault();
-    copySelection();
+    // Don't preventDefault — let the native copy event fire.
+    // Our capture-phase copy handler will set system clipboard data.
+    return;
+  }
+
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "x") {
+    // Don't preventDefault — let the native cut event fire.
     return;
   }
 
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "v") {
-    event.preventDefault();
-    pasteSelection();
+    // Don't preventDefault — let the native paste event fire.
+    // Our capture-phase paste handler will read clipboardData.files for images/PDFs.
     return;
   }
 
@@ -3106,8 +3423,6 @@ window.addEventListener("workspace-app:state-change", (event) => {
 });
 
 window.addEventListener("workspace-app:file-paste", async (event) => {
-  if (!IS_TLDRAW_PRIMARY_MODE) return;
-
   const files = Array.isArray(event?.detail?.files) ? event.detail.files.filter(Boolean) : [];
   if (files.length === 0) return;
 
@@ -3115,6 +3430,199 @@ window.addEventListener("workspace-app:file-paste", async (event) => {
     worldPoint: getCanvasViewportCenterWorldPoint(),
   });
 });
+
+// ── Universal file-paste handler (both modes) ──────────────────────────────
+// Miro-style: ALWAYS intercept the native paste event to check for file data
+// from macOS Finder. This runs in CAPTURE phase before tldraw's own handler.
+// For files, we handle them ourselves. For everything else, we either handle
+// it (compat mode) or let tldraw handle it (tldraw mode).
+document.addEventListener("paste", (event) => {
+  const target = document.activeElement;
+  // Skip real editable fields but NOT the clipboard trap
+  if (target?.matches?.("textarea, input, [contenteditable='true']:not([data-clipboard-trap])")) return;
+
+  const clipboardData = event.clipboardData;
+  if (!clipboardData) return;
+
+  // ── STEP 1: Check for file data (works in BOTH modes) ──
+  // macOS Finder puts image data as image/tiff in clipboardData.items (not .files).
+  // Like Miro, we check items first for file kind, then clipboardData.files as fallback.
+  const collectedFiles = [];
+
+  // 1a. Check clipboardData.items — Finder images appear here as kind='file'
+  if (clipboardData.items && clipboardData.items.length > 0) {
+    for (let i = 0; i < clipboardData.items.length; i++) {
+      const item = clipboardData.items[i];
+      if (item.kind === "file") {
+        const file = item.getAsFile();
+        if (file && file.size > 0) {
+          // Assign a name if the file has no name (macOS clipboard files often lack names)
+          if (!file.name || file.name === "image.tiff") {
+            const ext = (file.type || "").split("/")[1] || "bin";
+            const renamedFile = new File([file], `paste-${Date.now()}-${i}.${ext}`, { type: file.type });
+            collectedFiles.push(renamedFile);
+          } else {
+            collectedFiles.push(file);
+          }
+        }
+      }
+    }
+  }
+
+  // 1b. Fallback: check clipboardData.files (drag-and-drop, screenshots)
+  if (collectedFiles.length === 0 && clipboardData.files && clipboardData.files.length > 0) {
+    for (let i = 0; i < clipboardData.files.length; i++) {
+      const file = clipboardData.files[i];
+      if (file && file.size > 0) {
+        collectedFiles.push(file);
+      }
+    }
+  }
+
+  if (collectedFiles.length > 0) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+
+    // Convert TIFF files to PNG (browsers can receive tiff from macOS but can't display them)
+    const processedFilesPromise = Promise.all(
+      collectedFiles.map((file) => {
+        if (file.type === "image/tiff" || file.type === "image/x-tiff") {
+          return convertImageFileToPng(file);
+        }
+        return Promise.resolve(file);
+      })
+    );
+
+    processedFilesPromise.then((processedFiles) => {
+      const validFiles = processedFiles.filter(Boolean);
+      if (validFiles.length > 0) {
+        const center = getCanvasViewportCenterWorldPoint();
+        handleCanvasFiles(validFiles, {
+          worldPoint: center,
+        });
+      }
+    }).catch((err) => {
+      console.error("Failed to process pasted files:", err);
+    });
+
+    return;
+  }
+
+  // ── STEP 2: Non-file paste ──
+  // In tldraw mode, let tldraw handle text/node paste via its own handler
+  if (IS_TLDRAW_PRIMARY_MODE) {
+    // Delegate to tldraw's paste handler for non-file clipboard content
+    void window.__workspaceAppBridge?.pasteFromClipboard?.();
+    return;
+  }
+
+  // In compat mode, handle workspace clipboard and text paste ourselves
+  const html = clipboardData.getData("text/html");
+  const zmPayload = parseZmWorkspaceClipboardFromHtml(html);
+  if (zmPayload) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    state.selection.clipboard = {
+      nodes: cloneValue(zmPayload.nodes),
+      edges: cloneValue(zmPayload.edges || []),
+    };
+    pasteSelection();
+    return;
+  }
+
+  // Handle text paste
+  const pastedText =
+    normalizeClipboardTextCompat(clipboardData.getData("text/plain")) ||
+    normalizeClipboardTextCompat(
+      new DOMParser().parseFromString(html || "", "text/html").body.textContent || ""
+    );
+  if (pastedText) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    pasteExternalTextCompat(pastedText);
+  }
+}, true); // <-- CAPTURE PHASE
+
+// Native copy/cut event listeners for compat (legacy) mode.
+if (!IS_TLDRAW_PRIMARY_MODE) {
+  document.addEventListener("copy", (event) => {
+    const target = document.activeElement;
+    if (target?.matches?.("textarea, input, [contenteditable='true']:not([data-clipboard-trap])")) return;
+
+    const board = getActiveBoard();
+    const selectedNodes = getSelectedNodes(board);
+    if (selectedNodes.length === 0) return;
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+
+    // Update internal clipboard
+    const selectedIds = new Set(selectedNodes.map((node) => node.id));
+    state.selection.clipboard = {
+      nodes: cloneValue(selectedNodes),
+      edges: cloneValue(board.edges.filter((edge) => selectedIds.has(edge.from) && selectedIds.has(edge.to))),
+    };
+
+    // Write to system clipboard
+    const textParts = selectedNodes.map((node) => {
+      if (node.type === "link") return [node.title || "Reference link", node.url || node.content || ""].filter(Boolean).join("\n");
+      if (node.type === "group") return node.label || "Cluster";
+      if (node.type === "file") return [node.title || "Attachment", node.file || node.content || ""].filter(Boolean).join("\n");
+      if (node.type === "project") return [node.title || "", node.desc || node.content || ""].filter(Boolean).join("\n");
+      return node.content || node.title || "";
+    });
+    const plainText = textParts.join("\n\n").trim() || " ";
+    const clipboardPayload = JSON.stringify({
+      __zmWorkspaceClipboard: true,
+      nodes: cloneValue(selectedNodes),
+      edges: cloneValue(board.edges.filter((edge) => selectedIds.has(edge.from) && selectedIds.has(edge.to))),
+    });
+    const htmlContent = `<div data-zm-workspace-clipboard="${encodeURIComponent(clipboardPayload)}"><pre>${escapeHtml(plainText)}</pre></div>`;
+
+    event.clipboardData.setData("text/plain", plainText);
+    event.clipboardData.setData("text/html", htmlContent);
+  }, true); // <-- CAPTURE PHASE
+
+  document.addEventListener("cut", (event) => {
+    const target = document.activeElement;
+    if (target?.matches?.("textarea, input, [contenteditable='true']:not([data-clipboard-trap])")) return;
+
+    const board = getActiveBoard();
+    const selectedNodes = getSelectedNodes(board);
+    if (selectedNodes.length === 0 && !state.ui.selectedEdgeId) return;
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+
+    // Update internal clipboard
+    const selectedIds = new Set(selectedNodes.map((node) => node.id));
+    state.selection.clipboard = {
+      nodes: cloneValue(selectedNodes),
+      edges: cloneValue(board.edges.filter((edge) => selectedIds.has(edge.from) && selectedIds.has(edge.to))),
+    };
+
+    // Write to system clipboard
+    const textParts = selectedNodes.map((node) => {
+      if (node.type === "link") return [node.title || "Reference link", node.url || node.content || ""].filter(Boolean).join("\n");
+      if (node.type === "group") return node.label || "Cluster";
+      if (node.type === "file") return [node.title || "Attachment", node.file || node.content || ""].filter(Boolean).join("\n");
+      if (node.type === "project") return [node.title || "", node.desc || node.content || ""].filter(Boolean).join("\n");
+      return node.content || node.title || "";
+    });
+    const plainText = textParts.join("\n\n").trim() || " ";
+    const clipboardPayload = JSON.stringify({
+      __zmWorkspaceClipboard: true,
+      nodes: cloneValue(selectedNodes),
+      edges: cloneValue(board.edges.filter((edge) => selectedIds.has(edge.from) && selectedIds.has(edge.to))),
+    });
+    const htmlContent = `<div data-zm-workspace-clipboard="${encodeURIComponent(clipboardPayload)}"><pre>${escapeHtml(plainText)}</pre></div>`;
+
+    event.clipboardData.setData("text/plain", plainText);
+    event.clipboardData.setData("text/html", htmlContent);
+
+    removeSelection();
+  }, true); // <-- CAPTURE PHASE
+}
 
 window.addEventListener("beforeunload", () => {
   destroyActiveCollaborationSession("idle");
@@ -3141,3 +3649,5 @@ renderCollaborationStatus();
 renderCanvas();
 syncBoardFromCloud(getActiveBoard());
 updateCanvasToolbarToolState();
+// Miro-style: ensure clipboard trap has focus on initial load
+requestAnimationFrame(() => focusClipboardTrap());

@@ -216,7 +216,13 @@ function sanitizePathSegment(value, fallback = "board") {
 }
 
 function sanitizeUploadFilename(value) {
-  const basename = path.basename(String(value || "upload.bin").trim()) || "upload.bin";
+  // The client URL-encodes the filename to avoid non-ISO-8859-1 characters in HTTP headers
+  // (e.g. Chinese characters like 截屏 in macOS screenshot filenames).
+  let decoded = String(value || "upload.bin").trim();
+  try {
+    decoded = decodeURIComponent(decoded);
+  } catch {}
+  const basename = path.basename(decoded) || "upload.bin";
   const extension = path.extname(basename).toLowerCase();
   const stem = basename.slice(0, basename.length - extension.length) || "upload";
   const safeStem = sanitizePathSegment(stem, "upload");

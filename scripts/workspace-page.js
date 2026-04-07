@@ -3547,6 +3547,7 @@ window.addEventListener("workspace-app:board-change", (event) => {
   if (!IS_TLDRAW_PRIMARY_MODE) return;
 
   const nextBoard = event?.detail?.board;
+  const cameraChanged = event?.detail?.cameraChanged === true;
   const board = getActiveBoard();
   if (!board || !nextBoard || nextBoard.key !== board.key) {
     return;
@@ -3560,6 +3561,9 @@ window.addEventListener("workspace-app:board-change", (event) => {
   board.camera = cloneValue(nextBoard.camera || board.camera);
   board.nodes = cloneValue(nextBoard.nodes || board.nodes);
   board.edges = cloneValue(nextBoard.edges || board.edges);
+  if (cameraChanged && !state.ui.isContextCollapsed) {
+    state.ui.isContextCollapsed = true;
+  }
   persistActiveBoard();
   window.__workspaceBoardState = createWorkspaceBridgePayload(board);
   suppressNextWorkspaceAppSync = true;

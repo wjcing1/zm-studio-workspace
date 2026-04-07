@@ -164,14 +164,9 @@ async function main() {
       );
     }
 
-    if (
-      result.contextBefore ||
-      result.contextAfterWheelPan ||
-      result.contextAfterWheelPinch ||
-      result.contextAfterTouchGesture
-    ) {
+    if (!result.contextAfterWheelPan || !result.contextAfterWheelPinch || !result.contextAfterTouchGesture) {
       throw new Error(
-        `Overview context should stay visible during passive pan/zoom gestures. States: before=${result.contextBefore} wheelPan=${result.contextAfterWheelPan} wheelPinch=${result.contextAfterWheelPinch} touch=${result.contextAfterTouchGesture}`,
+        `Overview context should auto-collapse once two-finger pan/zoom gestures start. States: before=${result.contextBefore} wheelPan=${result.contextAfterWheelPan} wheelPinch=${result.contextAfterWheelPinch} touch=${result.contextAfterTouchGesture}`,
       );
     }
 

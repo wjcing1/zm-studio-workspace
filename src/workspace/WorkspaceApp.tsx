@@ -2163,7 +2163,12 @@ export default function WorkspaceApp() {
                 return;
               }
 
-              const nextBoard = buildBoardFromEditor(editor, boardRef.current);
+              const previousBoard = boardRef.current;
+              const nextBoard = buildBoardFromEditor(editor, previousBoard);
+              const cameraChanged =
+                previousBoard.camera?.x !== nextBoard.camera?.x ||
+                previousBoard.camera?.y !== nextBoard.camera?.y ||
+                previousBoard.camera?.z !== nextBoard.camera?.z;
               boardRef.current = nextBoard;
               publishWorkspaceState(editor, nextBoard, true);
               dispatchSelectionChange(editor);
@@ -2171,6 +2176,7 @@ export default function WorkspaceApp() {
                 new CustomEvent("workspace-app:board-change", {
                   detail: {
                     board: cloneValue(nextBoard),
+                    cameraChanged,
                   },
                 }),
               );

@@ -1,0 +1,32 @@
+{
+  "aliases": [
+    "architectural-prompt-architect",
+    "architecture prompting",
+    "architectural prompting"
+  ],
+  "defaultEnabled": true,
+  "mode": "prompt-safe",
+  "triggerKeywords": [
+    "architectural prompt",
+    "render prompt",
+    "rendering prompt",
+    "architecture prompt",
+    "building visualization",
+    "建筑渲染",
+    "渲染提示词",
+    "建筑提示词",
+    "建筑可视化",
+    "材质和光线",
+    "材质与光线",
+    "参考图 prompt",
+    "reference image prompt"
+  ],
+  "loadSections": [
+    "Overview",
+    "When to Use",
+    "Mandatory Check",
+    "Narrative Intent Gate",
+    "Physics Consistency Gate",
+    "Output Policy"
+  ]
+}

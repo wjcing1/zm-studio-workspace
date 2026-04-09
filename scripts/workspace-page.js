@@ -154,11 +154,25 @@ const WORKSPACE_STATIC_AI_HINT =
 const WORKSPACE_STATIC_AI_RECOVERY =
   "Workspace AI requires a server backend. GitHub Pages serves the static canvas only. Deploy `/api/workspace-assistant` on a Node-capable host to enable it.";
 
-const WORKSPACE_STARTERS = [
+const WORKSPACE_BASE_STARTERS = [
   "Summarize the selected or nearby cards and add three follow-up notes.",
   "Group the selected cards into one cluster and label it clearly.",
   "Turn the nearby ideas into a simple flow with connecting edges.",
 ];
+
+function getWorkspaceAssistantStarters() {
+  const starters = [...WORKSPACE_BASE_STARTERS];
+  const skills = Array.isArray(studioData?.assistant?.skills) ? studioData.assistant.skills : [];
+  const architecturalSkill = skills.find((skill) => skill.id === "architectural_prompt_architect");
+
+  if (architecturalSkill) {
+    starters.unshift(
+      "Use @architectural_prompt_architect to turn the selected references into an architectural prompt card.",
+    );
+  }
+
+  return starters;
+}
 
 const state = {
   boards: createBoardRegistry(),
@@ -1477,7 +1491,7 @@ function renderAssistantThread() {
   assistantTimeline?.setAttribute("aria-busy", state.assistant.sending ? "true" : "false");
   assistantStartersRegion.dataset.state = state.assistant.showStarters ? "visible" : "hidden";
   assistantStartersRegion.hidden = !state.assistant.showStarters;
-  assistantStarters.innerHTML = renderAssistantStarters(WORKSPACE_STARTERS, escapeHtml);
+  assistantStarters.innerHTML = renderAssistantStarters(getWorkspaceAssistantStarters(), escapeHtml);
   assistantMessages.innerHTML = renderAssistantMessages(state.assistant.messages, { nl2br });
 
   assistantInput.value = state.assistant.input;
@@ -1489,7 +1503,9 @@ function renderAssistantThread() {
   } else if (state.assistant.error) {
     assistantStatus.textContent = state.assistant.error;
   } else if (state.assistant.backendReady) {
-    assistantStatus.textContent = "Workspace AI backend connected.";
+    assistantStatus.textContent = Array.isArray(studioData?.assistant?.skills) && studioData.assistant.skills.length > 0
+      ? "Workspace AI backend connected. Type @architectural_prompt_architect to use the architectural prompt skill."
+      : "Workspace AI backend connected.";
   } else {
     assistantStatus.textContent = WORKSPACE_STATIC_AI_HINT;
   }

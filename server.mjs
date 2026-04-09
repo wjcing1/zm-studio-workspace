@@ -10,6 +10,7 @@ import { createMemoryStore } from "./memory-store.mjs";
 import { createRealtimeCollaborationServer } from "./realtime-collaboration-server.mjs";
 import { ensureWorkspaceAppBuild } from "./scripts/build-workspace-app.mjs";
 import { createStudioRepository } from "./studio-repository.mjs";
+import { resolveWorkspaceAssistantSkillContext } from "./workspace-assistant-skills.mjs";
 import {
   buildMemoryLookupQuery,
   deriveMemoryScopes,
@@ -527,11 +528,19 @@ function normalizeWorkspaceBody(body) {
   };
 }
 
-function buildWorkspaceAssistantPrompt(workspaceContext, memorySection = "Long-term memory:\n- none") {
+function buildWorkspaceAssistantPrompt(
+  workspaceContext,
+  memorySection = "Long-term memory:\n- none",
+  skillContext = { catalogPrompt: "Workspace skills: none enabled.", detailedPrompt: "", activeSkills: [] },
+) {
   const hasContext = workspaceContext.focus.contextNodeIds?.length > 0;
   const priorityInstruction = hasContext
     ? "The user has explicitly selected specific nodes as AI context (marked in focus.contextNodes with full data). Prioritize these context nodes above everything else, then use connected nodes and the canvas digest for broader understanding."
     : "No specific nodes are selected as AI context. Use the canvas digest and full node list to understand the board holistically.";
+  const activeSkillInstruction =
+    Array.isArray(skillContext.activeSkills) && skillContext.activeSkills.length > 0
+      ? `Active workspace skills for this request: ${skillContext.activeSkills.map((skill) => skill.id).join(", ")}. Follow their guidance when it fits the user's request, but keep the existing workspace JSON response contract.`
+      : "No detailed workspace skill is active for this request. Use the base workspace behavior unless the user asks for a listed skill.";
 
   return [
     "You are the workspace canvas copilot for ZM Studio.",
@@ -553,6 +562,9 @@ function buildWorkspaceAssistantPrompt(workspaceContext, memorySection = "Long-t
     "Prefer small, precise edits over rewriting the whole board.",
     "If the request is only analytical, return operations as an empty array.",
     "Match the user's language when possible.",
+    skillContext.catalogPrompt,
+    activeSkillInstruction,
+    skillContext.detailedPrompt ? `Detailed skill guidance:\n${skillContext.detailedPrompt}` : "",
     "",
     memorySection,
     "",
@@ -788,6 +800,11 @@ async function handleWorkspaceAssistant(request, response) {
   }
 
   const workspaceContext = normalizeWorkspaceBody(body);
+  const skillContext = await resolveWorkspaceAssistantSkillContext({
+    rootDir: ROOT_DIR,
+    workspaceContext,
+    messages,
+  });
   const memoryScopes = deriveMemoryScopes(workspaceContext);
   const memoryQuery = buildMemoryLookupQuery({
     workspaceContext,
@@ -806,7 +823,7 @@ async function handleWorkspaceAssistant(request, response) {
       messages: [
         {
           role: "system",
-          content: buildWorkspaceAssistantPrompt(workspaceContext, memorySection),
+          content: buildWorkspaceAssistantPrompt(workspaceContext, memorySection, skillContext),
         },
         ...messages,
       ],
@@ -1007,7 +1024,18 @@ const server = http.createServer(async (request, response) => {
 
   if (request.method === "GET" && url.pathname === "/api/studio-data") {
     const studioSnapshot = await studioRepository.getStudioSnapshot();
-    sendJson(response, 200, studioSnapshot);
+    const skillContext = await resolveWorkspaceAssistantSkillContext({
+      rootDir: ROOT_DIR,
+      workspaceContext: {},
+      messages: [],
+    });
+    sendJson(response, 200, {
+      ...studioSnapshot,
+      assistant: {
+        ...studioSnapshot.assistant,
+        skills: skillContext.skills,
+      },
+    });
     return;
   }
 

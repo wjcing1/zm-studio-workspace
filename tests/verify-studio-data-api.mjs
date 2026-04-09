@@ -56,6 +56,15 @@ async function main() {
       throw new Error("/api/studio-data should report sqlite as the active provider.");
     }
 
+    if (!Array.isArray(payload?.assistant?.skills) || payload.assistant.skills.length === 0) {
+      throw new Error("/api/studio-data should expose workspace assistant skills to the frontend.");
+    }
+
+    const architecturalSkill = payload.assistant.skills.find((skill) => skill.id === "architectural_prompt_architect");
+    if (!architecturalSkill || !architecturalSkill.defaultEnabled) {
+      throw new Error("/api/studio-data should expose architectural_prompt_architect as a default-enabled skill.");
+    }
+
     if (!Array.isArray(payload?.projects) || payload.projects.length < 5) {
       throw new Error("/api/studio-data should return the seeded projects.");
     }

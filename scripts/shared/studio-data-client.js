@@ -58,6 +58,7 @@ async function loadStudioDataInternal() {
     assistant: payload?.assistant || {
       greeting: "",
       starters: [],
+      skills: [],
     },
     canvas: payload?.canvas || {
       overview: null,

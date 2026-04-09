@@ -62,8 +62,8 @@ function parseJsonEnv(value, fallback) {
 }
 
 const PORT = Number(process.env.PORT || 4173);
-const MINIMAX_BASE_URL = process.env.MINIMAX_BASE_URL || "https://api.minimaxi.com/v1";
-const MODEL = process.env.MINIMAX_MODEL || "MiniMax-M2.7";
+const MINIMAX_BASE_URL = process.env.MINIMAX_BASE_URL || "https://shell.wyzai.top/v1";
+const MODEL = process.env.MINIMAX_MODEL || "gpt-5.4";
 const MAX_UPLOAD_BYTES = Number(process.env.UPLOAD_MAX_BYTES || 25 * 1024 * 1024);
 const CHAT_STREAM_TEST_MODE = process.env.CHAT_STREAM_TEST_MODE === "1";
 const CHAT_STREAM_TEST_TEXT =

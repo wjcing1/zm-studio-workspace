@@ -1,6 +1,8 @@
 .workspace-tldraw-root {
   position: absolute;
   inset: 0;
+  --workspace-selection-stroke: rgba(255, 255, 255, 0.72);
+  --workspace-selection-fill: rgba(255, 255, 255, 0.12);
 }
 
 .workspace-tldraw-root .tl-container,
@@ -16,6 +18,27 @@
 .workspace-tldraw-root .tl-background,
 .workspace-tldraw-root .tl-background__wrapper {
   background: transparent !important;
+}
+
+#workspaceCanvasApp[data-ai-context-active="true"][data-assistant-open="true"] .workspace-tldraw-root {
+  --workspace-selection-stroke: rgba(59, 130, 246, 0.9);
+  --workspace-selection-fill: rgba(59, 130, 246, 0.24);
+}
+
+.workspace-tldraw-root .tl-shape-indicator,
+.workspace-tldraw-root .tl-selection__fg__outline,
+.workspace-tldraw-root .tl-corner-handle,
+.workspace-tldraw-root .tl-handle__fg {
+  stroke: var(--workspace-selection-stroke);
+}
+
+.workspace-tldraw-root .tl-text-handle,
+.workspace-tldraw-root .tl-handle__clone > .tl-handle__fg {
+  fill: var(--workspace-selection-stroke);
+}
+
+.workspace-tldraw-root .tl-selection__bg {
+  background-color: var(--workspace-selection-fill);
 }
 
 .workspace-tldraw-card {

@@ -1467,6 +1467,10 @@ function renderAssistantContext() {
   assistantCompanion.classList.toggle("has-context", contextCount > 0);
   workspaceAssistantPanel.hidden = !state.ui.isAssistantOpen;
   workspaceAssistantBody?.setAttribute("data-assistant-open", state.ui.isAssistantOpen ? "true" : "false");
+  if (workspaceCanvasApp) {
+    workspaceCanvasApp.dataset.aiContextActive = contextCount > 0 ? "true" : "false";
+    workspaceCanvasApp.dataset.assistantOpen = state.ui.isAssistantOpen ? "true" : "false";
+  }
 }
 
 function renderAssistantThread() {

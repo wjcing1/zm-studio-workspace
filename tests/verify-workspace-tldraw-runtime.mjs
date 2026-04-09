@@ -166,6 +166,110 @@ async function main() {
       );
     }
 
+    const hybridSelectionResult = extractJsonResult(
+      runPw([
+        "eval",
+        `async () => {
+          const targetNodeId = window.__workspaceBoardState?.nodes?.[0]?.id || null;
+          if (!targetNodeId) {
+            return { targetNodeId: null };
+          }
+
+          window.__workspaceAppBridge?.selectNodeIds?.([targetNodeId]);
+          await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+          const selectionStroke = Array.from(document.querySelectorAll(".tl-shape-indicator, .tl-selection__fg__outline, .tl-corner-handle"))
+            .map((element) => getComputedStyle(element).stroke)
+            .find(Boolean);
+          const assistantPanel = document.getElementById("workspaceAssistantPanel");
+          const assistantCompanion = document.getElementById("assistantCompanion");
+
+          return {
+            targetNodeId,
+            selectionStroke: selectionStroke || null,
+            selectedNodeIds: window.__workspaceApp?.selectedNodeIds || [],
+            assistantHidden: assistantPanel ? assistantPanel.hidden : null,
+            hasAiContext: assistantCompanion ? assistantCompanion.classList.contains("has-context") : null,
+          };
+        }`,
+      ]),
+    );
+
+    if (!hybridSelectionResult.targetNodeId || !hybridSelectionResult.selectedNodeIds.includes(hybridSelectionResult.targetNodeId)) {
+      throw new Error(
+        `Hybrid runtime visual selection check should select a node before measuring its indicator. Target: ${hybridSelectionResult.targetNodeId || "<none>"} Selected: ${(hybridSelectionResult.selectedNodeIds || []).join(", ")}`,
+      );
+    }
+
+    const selectionStrokeChannels = parseRgbChannels(hybridSelectionResult.selectionStroke);
+    if (!selectionStrokeChannels) {
+      throw new Error("Hybrid runtime visual selection check should expose a tldraw selection indicator stroke.");
+    }
+
+    const looksBlue =
+      selectionStrokeChannels[2] > selectionStrokeChannels[0] + 30 &&
+      selectionStrokeChannels[2] > selectionStrokeChannels[1] + 15;
+
+    if (!hybridSelectionResult.assistantHidden || hybridSelectionResult.hasAiContext) {
+      throw new Error("Hybrid runtime selection check expected AI to stay closed and context-free while measuring the default selection state.");
+    }
+
+    if (looksBlue) {
+      throw new Error(
+        `Hybrid workspace should not use the AI blue accent for plain selection before the assistant opens. Got ${hybridSelectionResult.selectionStroke || "<none>"}`,
+      );
+    }
+
+    const hybridAiContextResult = extractJsonResult(
+      runPw([
+        "eval",
+        `async () => {
+          document.getElementById("assistantCompanion")?.click();
+          await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+          const selectionStroke = Array.from(document.querySelectorAll(".tl-shape-indicator, .tl-selection__fg__outline, .tl-corner-handle"))
+            .map((element) => getComputedStyle(element).stroke)
+            .find(Boolean);
+          const assistantPanel = document.getElementById("workspaceAssistantPanel");
+          const assistantCompanion = document.getElementById("assistantCompanion");
+          const workspaceCanvasApp = document.getElementById("workspaceCanvasApp");
+
+          return {
+            selectionStroke: selectionStroke || null,
+            assistantHidden: assistantPanel ? assistantPanel.hidden : null,
+            hasAiContext: assistantCompanion ? assistantCompanion.classList.contains("has-context") : null,
+            aiContextAttr: workspaceCanvasApp?.dataset?.aiContextActive || null,
+            assistantOpenAttr: workspaceCanvasApp?.dataset?.assistantOpen || null,
+          };
+        }`,
+      ]),
+    );
+
+    const aiContextSelectionStrokeChannels = parseRgbChannels(hybridAiContextResult.selectionStroke);
+    if (!aiContextSelectionStrokeChannels) {
+      throw new Error("Hybrid AI context visual check should expose a tldraw selection indicator stroke.");
+    }
+
+    const aiLooksBlue =
+      aiContextSelectionStrokeChannels[2] > aiContextSelectionStrokeChannels[0] + 30 &&
+      aiContextSelectionStrokeChannels[2] > aiContextSelectionStrokeChannels[1] + 15;
+
+    if (hybridAiContextResult.assistantHidden || !hybridAiContextResult.hasAiContext) {
+      throw new Error("Hybrid AI context visual check expected the assistant to open with the current selection locked as context.");
+    }
+
+    if (hybridAiContextResult.aiContextAttr !== "true" || hybridAiContextResult.assistantOpenAttr !== "true") {
+      throw new Error(
+        `Hybrid AI context visual check expected workspaceCanvasApp to expose assistant state. Context: ${hybridAiContextResult.aiContextAttr || "<none>"} Open: ${hybridAiContextResult.assistantOpenAttr || "<none>"}`,
+      );
+    }
+
+    if (!aiLooksBlue) {
+      throw new Error(
+        `Hybrid workspace should restore the AI blue accent once the assistant locks the selection as context. Got ${hybridAiContextResult.selectionStroke || "<none>"}`,
+      );
+    }
+
     extractJsonResult(
       runPw([
         "eval",

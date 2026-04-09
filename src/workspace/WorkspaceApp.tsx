@@ -75,6 +75,8 @@ type WorkspaceClipboardPayload = {
   edges: WorkspaceEdge[];
 };
 
+const WORKSPACE_CONNECTION_COLOR = "grey" as const;
+
 declare module "@tldraw/tlschema" {
   interface TLGlobalShapePropsMap {
     "zm-card": {
@@ -587,8 +589,8 @@ function createArrowShapePartial(params: {
       dash: "draw" as const,
       size: "m" as const,
       fill: "none" as const,
-      color: "black" as const,
-      labelColor: "black" as const,
+      color: WORKSPACE_CONNECTION_COLOR,
+      labelColor: WORKSPACE_CONNECTION_COLOR,
       bend: 0,
       start: { x: 0, y: 0 },
       end: { x: params.end.x - params.start.x, y: params.end.y - params.start.y },
@@ -1252,8 +1254,8 @@ function syncBoardToEditor(editor: Editor, board: WorkspaceBoard) {
           dash: "draw" as const,
           size: "m" as const,
           fill: "none" as const,
-          color: "black" as const,
-          labelColor: "black" as const,
+          color: WORKSPACE_CONNECTION_COLOR,
+          labelColor: WORKSPACE_CONNECTION_COLOR,
           bend: 0,
           start: { x: 0, y: 0 },
           end: { x: end.x - start.x, y: end.y - start.y },
@@ -1647,8 +1649,8 @@ export default function WorkspaceApp() {
               dash: "draw" as const,
               size: "m" as const,
               fill: "none" as const,
-              color: "black" as const,
-              labelColor: "black" as const,
+              color: WORKSPACE_CONNECTION_COLOR,
+              labelColor: WORKSPACE_CONNECTION_COLOR,
               bend: 0,
               start: { x: 0, y: 0 },
               end: { x: end.x - start.x, y: end.y - start.y },

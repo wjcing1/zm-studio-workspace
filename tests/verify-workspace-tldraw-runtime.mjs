@@ -24,6 +24,13 @@ function extractJsonResult(output) {
   return JSON.parse(match[1].trim());
 }
 
+function parseRgbChannels(value) {
+  if (typeof value !== "string") return null;
+  const matches = value.match(/\d+(?:\.\d+)?/g);
+  if (!matches || matches.length < 3) return null;
+  return matches.slice(0, 3).map((channel) => Number(channel));
+}
+
 async function main() {
   let runtime = null;
 
@@ -51,6 +58,27 @@ async function main() {
           const tlBackground = document.querySelector(".workspace-canvas-app .tl-background");
           const firstNode = document.querySelector(".workspace-canvas-app [data-workspace-node-id]");
           const firstNodeShell = firstNode?.querySelector(".workspace-tldraw-card-shell");
+          const arrowStroke = Array.from(
+            document.querySelectorAll("[data-shape-type='arrow'] path, [data-shape-type='arrow'] line, [data-shape-type='arrow'] polygon"),
+          ).find((segment) => getComputedStyle(segment).stroke !== "none");
+          const outerNodeVisualLeaks = Array.from(document.querySelectorAll("[data-workspace-node-id]"))
+            .map((node) => {
+              const styles = getComputedStyle(node);
+              return {
+                nodeId: node.getAttribute("data-workspace-node-id"),
+                background: styles.backgroundColor,
+                borderTopStyle: styles.borderTopStyle,
+                borderTopWidth: styles.borderTopWidth,
+                overflow: styles.overflow,
+              };
+            })
+            .filter(
+              (node) =>
+                node.background !== "rgba(0, 0, 0, 0)" ||
+                node.borderTopStyle !== "none" ||
+                node.borderTopWidth !== "0px" ||
+                node.overflow !== "visible",
+            );
           return {
             routeMode: viewport?.dataset?.workspaceMode || null,
             hasDebugApp: Boolean(window.__workspaceApp),
@@ -66,6 +94,8 @@ async function main() {
             firstNodeBackground: firstNode ? getComputedStyle(firstNode).backgroundColor : null,
             firstNodeBorderRadius: firstNode ? getComputedStyle(firstNode).borderRadius : null,
             firstNodeShellBorderRadius: firstNodeShell ? getComputedStyle(firstNodeShell).borderRadius : null,
+            connectionStroke: arrowStroke ? getComputedStyle(arrowStroke).stroke : null,
+            outerNodeVisualLeaks,
           };
         }`,
       ]),
@@ -112,6 +142,27 @@ async function main() {
     if (hybridResult.firstNodeBorderRadius !== hybridResult.firstNodeShellBorderRadius) {
       throw new Error(
         `Hybrid workspace outer node shell should match the rounded card shell. Outer: ${hybridResult.firstNodeBorderRadius || "<none>"} Inner: ${hybridResult.firstNodeShellBorderRadius || "<none>"}`,
+      );
+    }
+
+    const connectionStrokeChannels = parseRgbChannels(hybridResult.connectionStroke);
+    if (!connectionStrokeChannels) {
+      throw new Error("Hybrid workspace should expose a visible tldraw connection stroke for visual verification.");
+    }
+
+    const connectionBrightness =
+      connectionStrokeChannels.reduce((sum, channel) => sum + channel, 0) / connectionStrokeChannels.length;
+    const connectionSpread = Math.max(...connectionStrokeChannels) - Math.min(...connectionStrokeChannels);
+
+    if (connectionBrightness < 120 || connectionSpread > 40) {
+      throw new Error(
+        `Hybrid workspace should render tldraw connections as a lighter neutral stroke. Got ${hybridResult.connectionStroke || "<none>"}`,
+      );
+    }
+
+    if (hybridResult.outerNodeVisualLeaks.length > 0) {
+      throw new Error(
+        `Hybrid workspace should keep legacy outer card chrome off tldraw containers. Got ${JSON.stringify(hybridResult.outerNodeVisualLeaks)}`,
       );
     }
 

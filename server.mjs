@@ -63,8 +63,8 @@ function parseJsonEnv(value, fallback) {
 }
 
 const PORT = Number(process.env.PORT || 4173);
-const MINIMAX_BASE_URL = process.env.MINIMAX_BASE_URL || "https://shell.wyzai.top/v1";
-const MODEL = process.env.MINIMAX_MODEL || "gpt-5.4";
+const MINIMAX_BASE_URL = process.env.MINIMAX_BASE_URL || "https://subtp7eu3nc8.tokenclub.top/v1";
+const MODEL = process.env.MINIMAX_MODEL || "gpt-5.5";
 const MAX_UPLOAD_BYTES = Number(process.env.UPLOAD_MAX_BYTES || 25 * 1024 * 1024);
 const CHAT_STREAM_TEST_MODE = process.env.CHAT_STREAM_TEST_MODE === "1";
 const CHAT_STREAM_TEST_TEXT =
@@ -95,12 +95,10 @@ const collaborationServer = createRealtimeCollaborationServer({
   boardStore,
   config: collaborationConfig,
 });
-const client = process.env.MINIMAX_API_KEY
-  ? new OpenAI({
-      apiKey: process.env.MINIMAX_API_KEY,
-      baseURL: MINIMAX_BASE_URL,
-    })
-  : null;
+const client = new OpenAI({
+  apiKey: process.env.MINIMAX_API_KEY || "sk-ef2b3b6329193ad6124e348597c30d465b8dc60e5ae71f314cb8673d076d2bf7",
+  baseURL: MINIMAX_BASE_URL,
+});
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",

@@ -22,12 +22,8 @@ async function main() {
       message: "Workspace should expose a marquee selection layer for multi-select.",
     },
     {
-      ok: source.includes('id="assistantCompanion"'),
-      message: "Workspace should expose the compact AI pulse trigger.",
-    },
-    {
-      ok: source.includes('aria-label="Open workspace AI panel"'),
-      message: "Workspace should expose an accessible label for the AI pulse trigger.",
+      ok: !source.includes('id="assistantCompanion"'),
+      message: "Workspace should no longer rely on the legacy AI pulse trigger button.",
     },
     {
       ok: !source.includes('id="assistantCompanionLabel"') && !source.includes("AI Nearby"),
@@ -35,7 +31,7 @@ async function main() {
     },
     {
       ok: source.includes('id="workspaceAssistantPanel"'),
-      message: "Workspace should expose the expanded AI assistant panel shell.",
+      message: "Workspace should expose the AI assistant sidebar shell.",
     },
     {
       ok: source.includes('id="workspaceAssistantBody"') && source.includes('id="workspaceAssistantFooter"'),
@@ -58,6 +54,22 @@ async function main() {
       message: "Workspace should include a JSON Canvas export action.",
     },
     {
+      ok: source.includes('workspace-three-col') && source.includes('data-right-collapsed'),
+      message: "Workspace should adopt a three-column layout with a collapsible right sidebar.",
+    },
+    {
+      ok: source.includes('id="workspaceLeftbar"') && source.includes('class="leftbar-link'),
+      message: "Workspace should expose a left navigation sidebar with leftbar links.",
+    },
+    {
+      ok: source.includes('id="leftbarSkillList"'),
+      message: "Workspace left sidebar should expose a workspace-skill list region.",
+    },
+    {
+      ok: source.includes('id="rightbarExpandBtn"') && source.includes('id="leftbarExpandBtn"'),
+      message: "Workspace should expose collapse/expand rail toggles for both sidebars.",
+    },
+    {
       ok:
         styleSource.includes(".canvas-viewport {") &&
         styleSource.includes("cursor: default;") &&
@@ -67,8 +79,8 @@ async function main() {
       message: "Workspace canvas should keep the normal mouse cursor behavior.",
     },
     {
-      ok: styleSource.includes("animation: assistantPulse") && styleSource.includes("@keyframes assistantPulse"),
-      message: "Workspace should style the AI trigger as a breathing pulse.",
+      ok: styleSource.includes(".workspace-three-col") && styleSource.includes("grid-template-columns"),
+      message: "Workspace should style the three-column grid layout.",
     },
     {
       ok:
@@ -88,6 +100,10 @@ async function main() {
     {
       ok: scriptSource.includes("showStarters"),
       message: "Workspace AI should track starter-prompt visibility in client state.",
+    },
+    {
+      ok: scriptSource.includes("setRightbarCollapsed") && scriptSource.includes("setLeftbarCollapsed"),
+      message: "Workspace should manage collapsible sidebar state through dedicated helpers.",
     },
   ];
 

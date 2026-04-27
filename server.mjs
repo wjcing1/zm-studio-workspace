@@ -10,7 +10,17 @@ import { createMemoryStore } from "./memory-store.mjs";
 import { createRealtimeCollaborationServer } from "./realtime-collaboration-server.mjs";
 import { ensureWorkspaceAppBuild } from "./scripts/build-workspace-app.mjs";
 import { createStudioRepository } from "./studio-repository.mjs";
-import { resolveWorkspaceAssistantSkillContext } from "./workspace-assistant-skills.mjs";
+import {
+  loadSkillCatalog,
+  buildAvailableSkillsXml,
+  buildSkillsPublicSummary,
+} from "./workspace-assistant-skills.mjs";
+import {
+  AGENT_TOOL_SCHEMAS,
+  executeAgentTool,
+  createSkillSession,
+  destroySkillSession,
+} from "./workspace-assistant-tools.mjs";
 import {
   buildMemoryLookupQuery,
   deriveMemoryScopes,
@@ -63,11 +73,11 @@ function parseJsonEnv(value, fallback) {
 }
 
 const PORT = Number(process.env.PORT || 4173);
-const MINIMAX_BASE_URL = process.env.MINIMAX_BASE_URL || "https://subtp7eu3nc8.tokenclub.top/v1";
-const MODEL = process.env.MINIMAX_MODEL || "gpt-5.5";
-const IMAGE_MODEL = process.env.MINIMAX_IMAGE_MODEL || "gpt-image-2";
-const IMAGE_SIZE = process.env.MINIMAX_IMAGE_SIZE || "1024x1024";
-const REASONING_EFFORT = process.env.MINIMAX_REASONING_EFFORT || "xhigh";
+const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || "https://subtp7eu3nc8.tokenclub.top/v1";
+const MODEL = process.env.OPENAI_MODEL || "gpt-5.5";
+const IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || "gpt-image-2";
+const IMAGE_SIZE = process.env.OPENAI_IMAGE_SIZE || "1024x1024";
+const REASONING_EFFORT = process.env.OPENAI_REASONING_EFFORT || "xhigh";
 const MAX_UPLOAD_BYTES = Number(process.env.UPLOAD_MAX_BYTES || 25 * 1024 * 1024);
 const CHAT_STREAM_TEST_MODE = process.env.CHAT_STREAM_TEST_MODE === "1";
 const CHAT_STREAM_TEST_TEXT =
@@ -99,9 +109,49 @@ const collaborationServer = createRealtimeCollaborationServer({
   config: collaborationConfig,
 });
 const client = new OpenAI({
-  apiKey: process.env.MINIMAX_API_KEY || "sk-ef2b3b6329193ad6124e348597c30d465b8dc60e5ae71f314cb8673d076d2bf7",
-  baseURL: MINIMAX_BASE_URL,
+  apiKey: process.env.OPENAI_API_KEY || "sk-ef2b3b6329193ad6124e348597c30d465b8dc60e5ae71f314cb8673d076d2bf7",
+  baseURL: OPENAI_BASE_URL,
 });
+
+const LLM_REQUEST_TIMEOUT_MS = Number(process.env.OPENAI_REQUEST_TIMEOUT_MS || 90_000);
+const LLM_MAX_RETRY_ATTEMPTS = Number(process.env.OPENAI_MAX_RETRY_ATTEMPTS || 3);
+const LLM_RETRY_BASE_DELAY_MS = Number(process.env.OPENAI_RETRY_BASE_DELAY_MS || 1000);
+const AGENT_LOOP_MAX_ITERATIONS = Number(process.env.OPENAI_AGENT_LOOP_MAX_ITERATIONS || 12);
+
+let cachedSkillCatalog = await loadSkillCatalog({ rootDir: ROOT_DIR });
+
+async function refreshSkillCatalog() {
+  cachedSkillCatalog = await loadSkillCatalog({ rootDir: ROOT_DIR });
+  return cachedSkillCatalog;
+}
+
+async function callOpenAIChatWithRetry(params, { maxAttempts = LLM_MAX_RETRY_ATTEMPTS } = {}) {
+  let lastError;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), LLM_REQUEST_TIMEOUT_MS);
+    try {
+      return await client.chat.completions.create(params, { signal: controller.signal });
+    } catch (error) {
+      lastError = error;
+      const status = error?.status || error?.response?.status;
+      const isClientError = typeof status === "number" && status >= 400 && status < 500;
+      const isAbort = error?.name === "AbortError" || /aborted|timeout/i.test(String(error?.message || ""));
+      if (isClientError && !isAbort) throw error;
+      if (attempt >= maxAttempts) throw error;
+      const delay = LLM_RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1);
+      console.warn(
+        `OpenAI request failed (attempt ${attempt}/${maxAttempts}, ${isAbort ? "timeout" : "network/5xx"}): ${
+          error?.message || error
+        }. Retrying in ${delay}ms.`,
+      );
+      await wait(delay);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  throw lastError;
+}
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -534,7 +584,7 @@ function normalizeWorkspaceNode(node) {
     h: typeof node.h === "number" ? Math.round(node.h) : node.h === "auto" ? "auto" : 180,
     title: typeof node.title === "string" ? node.title.slice(0, 200) : "",
     label: typeof node.label === "string" ? node.label.slice(0, 200) : "",
-    content: typeof node.content === "string" ? node.content.slice(0, 1200) : "",
+    content: typeof node.content === "string" ? node.content.slice(0, 9600) : "",
     url: typeof node.url === "string" ? node.url.slice(0, 500) : "",
     tags: Array.isArray(node.tags) ? node.tags.map((tag) => String(tag).slice(0, 60)).slice(0, 8) : [],
     file: typeof node.file === "string" ? node.file.slice(0, 500) : "",
@@ -821,23 +871,32 @@ function attachImagesToLastUserMessage(messages, attachments) {
 function buildWorkspaceAssistantPrompt(
   workspaceContext,
   memorySection = "Long-term memory:\n- none",
-  skillContext = { catalogPrompt: "Workspace skills: none enabled.", detailedPrompt: "", activeSkills: [] },
+  skillCatalog = { skills: [] },
   imageAttachments = [],
 ) {
   const hasContext = workspaceContext.focus.contextNodeIds?.length > 0;
   const priorityInstruction = hasContext
     ? "The user has explicitly selected specific nodes as AI context (marked in focus.contextNodes with full data). Prioritize these context nodes above everything else, then use connected nodes and the canvas digest for broader understanding."
     : "No specific nodes are selected as AI context. Use the canvas digest and full node list to understand the board holistically.";
-  const activeSkillInstruction =
-    Array.isArray(skillContext.activeSkills) && skillContext.activeSkills.length > 0
-      ? `Active workspace skills for this request: ${skillContext.activeSkills.map((skill) => skill.id).join(", ")}. Follow their guidance when it fits the user's request, but keep the existing workspace JSON response contract.`
-      : "No detailed workspace skill is active for this request. Use the base workspace behavior unless the user asks for a listed skill.";
   const imageInstruction =
     Array.isArray(imageAttachments) && imageAttachments.length > 0
       ? `The user's message includes ${imageAttachments.length} image attachment(s) from the canvas (in order: ${imageAttachments
           .map((attachment, index) => `#${index + 1} ${attachment.title || attachment.nodeId || "image"}`)
           .join("; ")}). Examine each image directly when answering and reference it by its node title when relevant.`
       : "No image attachments accompany this turn — describe images only from the textual board context.";
+
+  const availableSkillsXml = buildAvailableSkillsXml(skillCatalog);
+  const skillCount = Array.isArray(skillCatalog?.skills) ? skillCatalog.skills.length : 0;
+  const skillUsageInstruction =
+    skillCount > 0
+      ? [
+          "Skills are available via progressive disclosure:",
+          "- Below is <available_skills> with id + one-line description for each installed skill (Level 1).",
+          "- When a user request matches a skill, call the load_skill(skill_id) tool to receive the full SKILL.md instructions and the skill's base path (Level 2).",
+          "- After loading a skill, use the bash / read_file / write_file tools to run bundled scripts and read referenced resources (Level 3). Script source code never enters context — only stdout/stderr does.",
+          "- When no skill applies, answer directly without calling load_skill. Skills are an option, not a requirement.",
+        ].join("\n")
+      : "No workspace skills are currently installed. Answer directly without invoking the load_skill tool.";
 
   return [
     "You are the workspace canvas copilot for ZM Studio.",
@@ -850,7 +909,11 @@ function buildWorkspaceAssistantPrompt(
     "- focus.connectedNodes: Nodes connected by edges to context nodes (full data)",
     "Use the digest to understand what the canvas contains overall. Use contextNodes for detailed analysis.",
     "Use long-term memory only as durable guidance. Prefer current user instructions if they conflict.",
-    "Return JSON only with this shape:",
+    "",
+    skillUsageInstruction,
+    availableSkillsXml,
+    "",
+    "When you are ready to give the FINAL answer to the user (no more tool calls needed), return JSON only with this shape:",
     '{"reply":"short helpful response","operations":[{"type":"addNode","node":{}},{"type":"updateNode","id":"node-id","patch":{}},{"type":"removeNode","id":"node-id"},{"type":"addEdge","edge":{}},{"type":"removeEdge","id":"edge-id"},{"type":"generateImage","prompt":"...","x":0,"y":0,"w":360,"h":280,"title":"optional"}]}',
     "Allowed node types: text, link, group, image, project, file.",
     "For addNode include id, type, x, y, w, h and any relevant content fields.",
@@ -860,10 +923,7 @@ function buildWorkspaceAssistantPrompt(
     "Prefer small, precise edits over rewriting the whole board.",
     "If the request is only analytical, return operations as an empty array.",
     "Match the user's language when possible.",
-    skillContext.catalogPrompt,
-    activeSkillInstruction,
     imageInstruction,
-    skillContext.detailedPrompt ? `Detailed skill guidance:\n${skillContext.detailedPrompt}` : "",
     "",
     memorySection,
     "",
@@ -896,7 +956,7 @@ function normalizeWorkspaceOperations(input) {
                   : 180,
             title: typeof operation.node.title === "string" ? operation.node.title.slice(0, 200) : "",
             label: typeof operation.node.label === "string" ? operation.node.label.slice(0, 200) : "",
-            content: typeof operation.node.content === "string" ? operation.node.content.slice(0, 1200) : "",
+            content: typeof operation.node.content === "string" ? operation.node.content.slice(0, 9600) : "",
             url: typeof operation.node.url === "string" ? operation.node.url.slice(0, 500) : "",
             file: typeof operation.node.file === "string" ? operation.node.file.slice(0, 500) : "",
             fileKind: typeof operation.node.fileKind === "string" ? operation.node.fileKind.slice(0, 24) : "",
@@ -1055,7 +1115,7 @@ async function handleChat(request, response) {
 
   if (!client) {
     sendJson(response, 503, {
-      error: "MINIMAX_API_KEY is not configured on the server. Add it to your environment and restart the app.",
+      error: "OPENAI_API_KEY is not configured on the server. Add it to your environment and restart the app.",
     });
     return;
   }
@@ -1098,7 +1158,7 @@ async function handleChat(request, response) {
       }
 
       if (!wroteChunk) {
-        throw new Error("MiniMax returned an empty response.");
+        throw new Error("OpenAI returned an empty response.");
       }
 
       writeSseEvent(response, {
@@ -1109,7 +1169,7 @@ async function handleChat(request, response) {
       return;
     }
 
-    const completion = await client.chat.completions.create({
+    const completion = await callOpenAIChatWithRetry({
       model: MODEL,
       messages: chatMessages,
       extra_body: {
@@ -1120,7 +1180,7 @@ async function handleChat(request, response) {
 
     const reply = extractChatText(completion);
     if (!reply) {
-      throw new Error("MiniMax returned an empty response.");
+      throw new Error("OpenAI returned an empty response.");
     }
 
     sendJson(response, 200, {
@@ -1133,8 +1193,8 @@ async function handleChat(request, response) {
         type: "error",
         error:
           error instanceof Error
-            ? `MiniMax request failed: ${error.message}`
-            : "MiniMax request failed.",
+            ? `OpenAI request failed: ${error.message}`
+            : "OpenAI request failed.",
       });
       response.end();
       return;
@@ -1143,10 +1203,26 @@ async function handleChat(request, response) {
     sendJson(response, 502, {
       error:
         error instanceof Error
-          ? `MiniMax request failed: ${error.message}`
-          : "MiniMax request failed.",
+          ? `OpenAI request failed: ${error.message}`
+          : "OpenAI request failed.",
     });
   }
+}
+
+function summarizeToolResult(toolName, result) {
+  if (!result || typeof result !== "object") return "";
+  if (result.ok === false) return `error: ${result.error || "unknown"}`;
+  if (toolName === "load_skill") return `loaded ${result.skill_id || "skill"}`;
+  if (toolName === "bash") {
+    if (result.timed_out) return "timed out";
+    return `exit ${result.exit_code ?? "?"}`;
+  }
+  if (toolName === "read_file") {
+    const name = typeof result.path === "string" ? result.path.split("/").pop() : "file";
+    return `read ${name}`;
+  }
+  if (toolName === "write_file") return `wrote ${result.bytes_written ?? 0} bytes`;
+  return "";
 }
 
 async function handleWorkspaceAssistant(request, response) {
@@ -1166,7 +1242,7 @@ async function handleWorkspaceAssistant(request, response) {
 
   if (!client) {
     sendJson(response, 503, {
-      error: "MINIMAX_API_KEY is not configured on the server. Add it to your environment and restart the app.",
+      error: "OPENAI_API_KEY is not configured on the server. Add it to your environment and restart the app.",
     });
     return;
   }
@@ -1178,16 +1254,8 @@ async function handleWorkspaceAssistant(request, response) {
   }
 
   const workspaceContext = normalizeWorkspaceBody(body);
-  const skillContext = await resolveWorkspaceAssistantSkillContext({
-    rootDir: ROOT_DIR,
-    workspaceContext,
-    messages,
-  });
   const memoryScopes = deriveMemoryScopes(workspaceContext);
-  const memoryQuery = buildMemoryLookupQuery({
-    workspaceContext,
-    messages,
-  });
+  const memoryQuery = buildMemoryLookupQuery({ workspaceContext, messages });
   const relevantMemories = await memoryStore.findRelevantMemories({
     scopes: memoryScopes,
     query: memoryQuery,
@@ -1199,33 +1267,119 @@ async function handleWorkspaceAssistant(request, response) {
     ? attachImagesToLastUserMessage(messages, imageAttachments)
     : messages;
 
-  try {
-    const completion = await client.chat.completions.create({
-      model: MODEL,
-      messages: [
-        {
-          role: "system",
-          content: buildWorkspaceAssistantPrompt(workspaceContext, memorySection, skillContext, imageAttachments),
-        },
-        ...augmentedMessages,
-      ],
-      extra_body: {
-        reasoning_split: true,
-        reasoning_effort: REASONING_EFFORT,
-      },
-    });
+  const skillCatalog = cachedSkillCatalog;
+  const session = await createSkillSession({ rootDir: ROOT_DIR });
 
-    const rawReply = extractChatText(completion);
-    if (!rawReply) {
-      throw new Error("MiniMax returned an empty workspace response.");
+  let sseOpen = false;
+  const emitSse = (payload) => {
+    if (!streamRequested) return;
+    if (!sseOpen) {
+      openSseStream(response);
+      sseOpen = true;
+    }
+    writeSseEvent(response, payload);
+  };
+
+  try {
+    const systemPrompt = buildWorkspaceAssistantPrompt(
+      workspaceContext,
+      memorySection,
+      skillCatalog,
+      imageAttachments,
+    );
+    const conversation = [
+      { role: "system", content: systemPrompt },
+      ...augmentedMessages,
+    ];
+
+    let finalAssistantText = "";
+    let iterationsRun = 0;
+    const toolCallTrace = [];
+
+    for (let iteration = 0; iteration < AGENT_LOOP_MAX_ITERATIONS; iteration += 1) {
+      iterationsRun = iteration + 1;
+
+      const completion = await callOpenAIChatWithRetry({
+        model: MODEL,
+        messages: conversation,
+        tools: AGENT_TOOL_SCHEMAS,
+        tool_choice: "auto",
+        extra_body: {
+          reasoning_split: true,
+          reasoning_effort: REASONING_EFFORT,
+        },
+      });
+
+      const choice = completion?.choices?.[0];
+      const message = choice?.message;
+      if (!message) {
+        throw new Error("OpenAI returned no message.");
+      }
+
+      const toolCalls = Array.isArray(message.tool_calls) ? message.tool_calls : [];
+
+      if (toolCalls.length === 0) {
+        finalAssistantText = typeof message.content === "string" ? message.content : "";
+        break;
+      }
+
+      conversation.push({
+        role: "assistant",
+        content: typeof message.content === "string" ? message.content : "",
+        tool_calls: toolCalls,
+      });
+
+      for (const toolCall of toolCalls) {
+        const toolName = toolCall.function?.name || "";
+        emitSse({
+          type: "tool_call_start",
+          iteration: iterationsRun,
+          tool_call_id: toolCall.id,
+          name: toolName,
+          arguments: toolCall.function?.arguments || "",
+        });
+
+        const result = await executeAgentTool({
+          toolCall,
+          catalog: skillCatalog,
+          sessionDir: session.sessionDir,
+        });
+
+        const summary = summarizeToolResult(toolName, result);
+        toolCallTrace.push({
+          tool_call_id: toolCall.id,
+          name: toolName,
+          ok: result?.ok !== false,
+          summary,
+        });
+
+        emitSse({
+          type: "tool_call_end",
+          iteration: iterationsRun,
+          tool_call_id: toolCall.id,
+          name: toolName,
+          ok: result?.ok !== false,
+          summary,
+        });
+
+        conversation.push({
+          role: "tool",
+          tool_call_id: toolCall.id,
+          content: JSON.stringify(result),
+        });
+      }
     }
 
-    let reply = rawReply;
+    if (!finalAssistantText) {
+      throw new Error(`Agent loop exceeded ${AGENT_LOOP_MAX_ITERATIONS} iterations without a final reply.`);
+    }
+
+    let reply = finalAssistantText;
     let operations = [];
 
     try {
-      const payload = extractJsonObject(rawReply);
-      reply = typeof payload.reply === "string" && payload.reply.trim() ? payload.reply.trim() : rawReply;
+      const payload = extractJsonObject(finalAssistantText);
+      reply = typeof payload.reply === "string" && payload.reply.trim() ? payload.reply.trim() : finalAssistantText;
       operations = normalizeWorkspaceOperations(payload.operations);
     } catch {}
 
@@ -1247,16 +1401,12 @@ async function handleWorkspaceAssistant(request, response) {
       reply = reply ? `${reply}\n\n${summaryParts.join(" ")}` : summaryParts.join(" ");
     }
 
-    const extractedMemories = extractDurableMemories({
-      workspaceContext,
-      messages,
-    });
+    const extractedMemories = extractDurableMemories({ workspaceContext, messages });
 
     try {
       if (relevantMemories.length > 0) {
         await memoryStore.touchMemories(relevantMemories.map((item) => item.id));
       }
-
       if (extractedMemories.length > 0) {
         await memoryStore.upsertMemories(extractedMemories);
       }
@@ -1268,33 +1418,47 @@ async function handleWorkspaceAssistant(request, response) {
       reply,
       operations,
       model: MODEL,
+      iterations: iterationsRun,
+      tool_calls: toolCallTrace,
     };
 
     if (streamRequested) {
-      await streamWorkspaceAssistantPayload(response, responsePayload);
+      if (!sseOpen) {
+        openSseStream(response);
+        sseOpen = true;
+      }
+      await writeChunkedAssistantText(response, reply, 18);
+      writeSseEvent(response, {
+        type: "done",
+        model: MODEL,
+        operations,
+        iterations: iterationsRun,
+        tool_calls: toolCallTrace,
+      });
+      response.end();
       return;
     }
 
     sendJson(response, 200, responsePayload);
   } catch (error) {
-    if (streamRequested && response.headersSent) {
+    if (streamRequested && (sseOpen || response.headersSent)) {
+      if (!sseOpen) {
+        openSseStream(response);
+        sseOpen = true;
+      }
       writeSseEvent(response, {
         type: "error",
-        error:
-          error instanceof Error
-            ? `MiniMax request failed: ${error.message}`
-            : "MiniMax request failed.",
+        error: error instanceof Error ? `OpenAI request failed: ${error.message}` : "OpenAI request failed.",
       });
       response.end();
       return;
     }
 
     sendJson(response, 502, {
-      error:
-        error instanceof Error
-          ? `MiniMax request failed: ${error.message}`
-          : "MiniMax request failed.",
+      error: error instanceof Error ? `OpenAI request failed: ${error.message}` : "OpenAI request failed.",
     });
+  } finally {
+    await destroySkillSession({ sessionDir: session.sessionDir });
   }
 }
 
@@ -1425,16 +1589,11 @@ const server = http.createServer(async (request, response) => {
 
   if (request.method === "GET" && url.pathname === "/api/studio-data") {
     const studioSnapshot = await studioRepository.getStudioSnapshot();
-    const skillContext = await resolveWorkspaceAssistantSkillContext({
-      rootDir: ROOT_DIR,
-      workspaceContext: {},
-      messages: [],
-    });
     sendJson(response, 200, {
       ...studioSnapshot,
       assistant: {
         ...studioSnapshot.assistant,
-        skills: skillContext.skills,
+        skills: buildSkillsPublicSummary(cachedSkillCatalog),
       },
     });
     return;

@@ -28,7 +28,7 @@ Excluded:
 ## Current System Constraints
 
 - The workspace assistant sends the current conversation plus board/focus context from the browser to `/api/workspace-assistant`.
-- The server normalizes that context, builds a single system prompt, and calls MiniMax.
+- The server normalizes that context, builds a single system prompt, and calls OpenAI.
 - Board persistence already uses a local-file store, so a local-file memory store will fit the existing deployment model.
 
 ## V1 Approach

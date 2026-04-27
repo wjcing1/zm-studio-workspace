@@ -78,7 +78,7 @@ async function main() {
     env: {
       ...process.env,
       PORT: String(PORT),
-      MINIMAX_API_KEY: "",
+      OPENAI_API_KEY: "",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -109,13 +109,13 @@ async function main() {
 
     if (response.status !== 503) {
       throw new Error(
-        `/api/workspace-assistant should return 503 without MINIMAX_API_KEY, got ${response.status}`,
+        `/api/workspace-assistant should return 503 without OPENAI_API_KEY, got ${response.status}`,
       );
     }
 
     const payload = await response.json();
-    if (!payload.error || !String(payload.error).includes("MINIMAX_API_KEY")) {
-      throw new Error("/api/workspace-assistant missing-key response did not explain MINIMAX_API_KEY configuration");
+    if (!payload.error || !String(payload.error).includes("OPENAI_API_KEY")) {
+      throw new Error("/api/workspace-assistant missing-key response did not explain OPENAI_API_KEY configuration");
     }
 
     const streamingServer = spawn("node", ["server.mjs"], {
@@ -123,7 +123,7 @@ async function main() {
       env: {
         ...process.env,
         PORT: String(PORT + 1),
-        MINIMAX_API_KEY: "",
+        OPENAI_API_KEY: "",
         WORKSPACE_ASSISTANT_STREAM_TEST_MODE: "1",
         WORKSPACE_ASSISTANT_STREAM_TEST_TEXT: STREAM_TEXT,
         WORKSPACE_ASSISTANT_STREAM_TEST_OPERATIONS_JSON: JSON.stringify(STREAM_OPERATIONS),

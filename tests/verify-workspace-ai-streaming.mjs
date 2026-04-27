@@ -74,7 +74,7 @@ async function main() {
       ...process.env,
       PORT: String(PORT),
       STUDIO_DB_PATH: path.join(tempStudioDir, "studio.sqlite"),
-      MINIMAX_API_KEY: "",
+      OPENAI_API_KEY: "",
       WORKSPACE_ASSISTANT_STREAM_TEST_MODE: "1",
       WORKSPACE_ASSISTANT_STREAM_TEST_TEXT: STREAM_TEXT,
       WORKSPACE_ASSISTANT_STREAM_TEST_DELAY_MS: "90",

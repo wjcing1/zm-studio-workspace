@@ -6,7 +6,7 @@
 
 **Architecture:** Preserve the current `projects.html` shell and `/api/chat` endpoint, but refactor the assistant markup and state flow around a fixed header, scrollable message timeline, and fixed composer. Extend `/api/chat` with an opt-in streaming mode so the Projects page can render incrementally without breaking the current JSON contract used elsewhere.
 
-**Tech Stack:** Static HTML, vanilla JavaScript modules, CSS, Node HTTP server, OpenAI-compatible MiniMax API, Node and Playwright verification scripts
+**Tech Stack:** Static HTML, vanilla JavaScript modules, CSS, Node HTTP server, OpenAI-compatible OpenAI API, Node and Playwright verification scripts
 
 ---
 
@@ -47,9 +47,9 @@ Expected: FAIL with missing Projects AI sheet marker messages.
 **Step 1: Write the failing test**
 
 Extend the chat API contract test so it expects:
-- JSON mode without `MINIMAX_API_KEY` still returns `503`
-- stream mode without `MINIMAX_API_KEY` also returns `503`
-- the stream-mode error still explains `MINIMAX_API_KEY`
+- JSON mode without `OPENAI_API_KEY` still returns `503`
+- stream mode without `OPENAI_API_KEY` also returns `503`
+- the stream-mode error still explains `OPENAI_API_KEY`
 
 **Step 2: Run test to verify it fails**
 

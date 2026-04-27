@@ -56,7 +56,7 @@ export async function startIsolatedWorkspaceServer({
     env: {
       ...process.env,
       PORT: String(port),
-      MINIMAX_API_KEY: "",
+      OPENAI_API_KEY: "",
       STUDIO_DB_PATH: path.join(tempStudioDir, "studio.sqlite"),
       ...env,
     },

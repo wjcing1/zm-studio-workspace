@@ -55,7 +55,7 @@ async function main() {
     env: {
       ...process.env,
       PORT: String(PORT),
-      MINIMAX_API_KEY: "",
+      OPENAI_API_KEY: "",
       CHAT_STREAM_TEST_MODE: "1",
       CHAT_STREAM_TEST_TEXT: STREAM_TEXT,
       CHAT_STREAM_TEST_DELAY_MS: "90",

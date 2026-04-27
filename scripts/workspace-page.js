@@ -188,7 +188,9 @@ const state = {
   },
   ui: {
     isContextCollapsed: false,
-    isAssistantOpen: false,
+    isAssistantOpen: true,
+    isLeftbarCollapsed: false,
+    isRightbarCollapsed: false,
     hoveredNodeId: null,
     selectedEdgeId: null,
   },
@@ -230,7 +232,7 @@ const state = {
       {
         role: "assistant",
         content:
-          "Select one or more nodes and press Space to start. I'll focus on the selected nodes while understanding the full canvas.",
+          "Select one or more nodes (or press Space) to focus me on them. I always understand the full canvas — including any image cards.",
       },
     ],
     input: "",
@@ -342,11 +344,14 @@ const canvasToolbar = document.getElementById("canvasToolbar");
 const marqueeSelection = document.getElementById("marqueeSelection");
 const zoomValue = document.querySelector("#zoomValue span");
 const resetViewBtn = document.getElementById("resetViewBtn");
-const assistantToggleBtn = document.getElementById("assistantToggleBtn");
 const collaborationStatus = document.getElementById("collaborationStatus");
-const assistantCompanion = document.getElementById("assistantCompanion");
 const workspaceAssistantPanel = document.getElementById("workspaceAssistantPanel");
 const assistantCloseBtn = document.getElementById("assistantCloseBtn");
+const workspaceLayoutShell = document.querySelector(".workspace-three-col");
+const leftbarCollapseBtn = document.getElementById("leftbarCollapseBtn");
+const leftbarExpandBtn = document.getElementById("leftbarExpandBtn");
+const rightbarExpandBtn = document.getElementById("rightbarExpandBtn");
+const leftbarSkillList = document.getElementById("leftbarSkillList");
 const workspaceAssistantBody = document.getElementById("workspaceAssistantBody");
 const assistantContextSummary = document.getElementById("assistantContextSummary");
 const assistantStartersRegion = document.getElementById("assistantStartersRegion");
@@ -1039,7 +1044,7 @@ function getCanvasNodeIdAtPoint(clientX, clientY) {
   for (const element of elements) {
     if (
       element?.closest?.(
-        ".canvas-context-shell, #canvasContextToggle, #canvasToolbar, #assistantCompanion, #workspaceAssistantPanel",
+        ".canvas-context-shell, #canvasContextToggle, #canvasToolbar, #workspaceAssistantPanel, .workspace-leftbar, .sidebar-rail-toggle",
       )
     ) {
       return null;
@@ -1474,12 +1479,7 @@ function renderAssistantContext() {
   const summary = buildAssistantSummary(board);
   assistantContextSummary.textContent = summary;
 
-  // Show context node count badge in the companion button
   const contextCount = state.assistant.contextNodeIds.length;
-  assistantCompanion.hidden = false;
-  assistantCompanion.dataset.contextCount = String(contextCount);
-  assistantCompanion.classList.toggle("has-context", contextCount > 0);
-  workspaceAssistantPanel.hidden = !state.ui.isAssistantOpen;
   workspaceAssistantBody?.setAttribute("data-assistant-open", state.ui.isAssistantOpen ? "true" : "false");
   if (workspaceCanvasApp) {
     workspaceCanvasApp.dataset.aiContextActive = contextCount > 0 ? "true" : "false";
@@ -1519,6 +1519,7 @@ function openAssistantPanel(options = {}) {
     state.assistant.contextNodeIds = [...state.selection.nodeIds];
   }
   state.ui.isAssistantOpen = true;
+  setRightbarCollapsed(false, { focusInput: options.focusInput });
   renderAssistantThread();
   renderCanvas();
   renderAssistantContext();
@@ -1549,6 +1550,128 @@ function toggleAssistantPanel(options = {}) {
     openAssistantPanel(options);
   }
 }
+
+const SIDEBAR_STATE_STORAGE_KEY = "zm-workspace-sidebar-state";
+
+function loadSidebarStateFromStorage() {
+  try {
+    const raw = window.localStorage.getItem(SIDEBAR_STATE_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (typeof parsed?.left === "boolean") {
+      state.ui.isLeftbarCollapsed = parsed.left;
+    }
+    if (typeof parsed?.right === "boolean") {
+      state.ui.isRightbarCollapsed = parsed.right;
+    }
+  } catch {}
+}
+
+function persistSidebarState() {
+  try {
+    window.localStorage.setItem(
+      SIDEBAR_STATE_STORAGE_KEY,
+      JSON.stringify({
+        left: state.ui.isLeftbarCollapsed,
+        right: state.ui.isRightbarCollapsed,
+      }),
+    );
+  } catch {}
+}
+
+function applySidebarLayout() {
+  if (!workspaceLayoutShell) return;
+
+  workspaceLayoutShell.dataset.leftCollapsed = state.ui.isLeftbarCollapsed ? "true" : "false";
+  workspaceLayoutShell.dataset.rightCollapsed = state.ui.isRightbarCollapsed ? "true" : "false";
+
+  if (leftbarExpandBtn) {
+    leftbarExpandBtn.hidden = !state.ui.isLeftbarCollapsed;
+    leftbarExpandBtn.setAttribute("aria-expanded", state.ui.isLeftbarCollapsed ? "false" : "true");
+  }
+  if (rightbarExpandBtn) {
+    rightbarExpandBtn.hidden = !state.ui.isRightbarCollapsed;
+    rightbarExpandBtn.setAttribute("aria-expanded", state.ui.isRightbarCollapsed ? "false" : "true");
+  }
+  if (leftbarCollapseBtn) {
+    leftbarCollapseBtn.setAttribute("aria-expanded", state.ui.isLeftbarCollapsed ? "false" : "true");
+  }
+  if (assistantCloseBtn) {
+    assistantCloseBtn.setAttribute("aria-expanded", state.ui.isRightbarCollapsed ? "false" : "true");
+  }
+
+  // Re-render the canvas because available width changed
+  renderCanvas();
+}
+
+function setLeftbarCollapsed(collapsed) {
+  if (state.ui.isLeftbarCollapsed === collapsed) return;
+  state.ui.isLeftbarCollapsed = collapsed;
+  persistSidebarState();
+  applySidebarLayout();
+}
+
+function setRightbarCollapsed(collapsed, options = {}) {
+  if (state.ui.isRightbarCollapsed === collapsed) {
+    if (!collapsed && options.focusInput) {
+      focusAssistantInput(assistantInput);
+    }
+    return;
+  }
+  state.ui.isRightbarCollapsed = collapsed;
+  persistSidebarState();
+  applySidebarLayout();
+
+  if (!collapsed && options.focusInput) {
+    focusAssistantInput(assistantInput);
+  }
+}
+
+function renderLeftbarSkills() {
+  if (!leftbarSkillList) return;
+  const skills = Array.isArray(studioData?.assistant?.skills) ? studioData.assistant.skills : [];
+
+  if (skills.length === 0) {
+    leftbarSkillList.dataset.empty = "true";
+    leftbarSkillList.innerHTML = `<p class="leftbar-skill-empty">No workspace skills enabled.</p>`;
+    return;
+  }
+
+  leftbarSkillList.dataset.empty = "false";
+  leftbarSkillList.innerHTML = skills
+    .map((skill) => {
+      const id = escapeHtml(skill.id || "");
+      const name = escapeHtml(skill.name || skill.id || "Skill");
+      const description = escapeHtml(skill.description || "");
+      return `
+        <button class="leftbar-skill" type="button" data-skill-mention="${id}" title="Insert @${id} mention">
+          <span class="leftbar-skill-name">${name}</span>
+          ${description ? `<p class="leftbar-skill-desc">${description}</p>` : ""}
+        </button>
+      `;
+    })
+    .join("");
+}
+
+function insertSkillMention(skillId) {
+  if (!skillId) return;
+  const mention = `@${skillId}`;
+  const current = assistantInput?.value || "";
+  const needsSpace = current.length > 0 && !current.endsWith(" ");
+  const next = `${current}${needsSpace ? " " : ""}${mention} `;
+  state.assistant.input = next;
+  setRightbarCollapsed(false, { focusInput: true });
+  if (assistantInput) {
+    assistantInput.value = next;
+    assistantInput.setSelectionRange(next.length, next.length);
+  }
+}
+
+leftbarSkillList?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-skill-mention]");
+  if (!button) return;
+  insertSkillMention(button.dataset.skillMention);
+});
 
 function openOverviewCanvas() {
   state.canvasContext = {
@@ -2708,16 +2831,20 @@ canvasContextToggle?.addEventListener("click", () => {
   expandCanvasContext();
 });
 
-assistantCompanion?.addEventListener("click", () => {
-  openAssistantPanel({ focusInput: true });
-});
-
-assistantToggleBtn?.addEventListener("click", () => {
-  toggleAssistantPanel({ focusInput: state.ui.isAssistantOpen === false });
-});
-
 assistantCloseBtn?.addEventListener("click", () => {
-  closeAssistantPanel();
+  setRightbarCollapsed(true);
+});
+
+leftbarCollapseBtn?.addEventListener("click", () => {
+  setLeftbarCollapsed(true);
+});
+
+leftbarExpandBtn?.addEventListener("click", () => {
+  setLeftbarCollapsed(false);
+});
+
+rightbarExpandBtn?.addEventListener("click", () => {
+  setRightbarCollapsed(false, { focusInput: true });
 });
 
 addTextNodeBtn?.addEventListener("click", () => {
@@ -2958,8 +3085,9 @@ canvasViewport.addEventListener("pointerdown", (event) => {
   if (event.target.closest(".canvas-context-shell")) return;
   if (event.target.closest("#canvasContextToggle")) return;
   if (event.target.closest("#canvasToolbar")) return;
-  if (event.target.closest("#assistantCompanion")) return;
   if (event.target.closest("#workspaceAssistantPanel")) return;
+  if (event.target.closest(".workspace-leftbar")) return;
+  if (event.target.closest(".sidebar-rail-toggle")) return;
   if (event.target.closest("[data-open-project]")) return;
   if (event.target.closest("[data-node-action]")) return;
 
@@ -3413,14 +3541,19 @@ window.addEventListener("keydown", (event) => {
       return;
     }
 
-    // Space: open AI assistant with selected nodes as context (or hand tool if no selection)
+    // Space: lock the current selection as AI context (or hand tool if no selection).
+    // The AI panel is now a permanent sidebar — Space no longer toggles it.
     if (isSpaceShortcut) {
       event.preventDefault();
       if (!event.repeat) {
         const hasSelection = (window.__workspaceApp?.pageSelectedNodeIds?.length || 0) > 0
           || state.selection.nodeIds.length > 0;
         if (hasSelection) {
-          openAssistantPanel({ focusInput: true });
+          if (state.selection.nodeIds.length > 0) {
+            state.assistant.contextNodeIds = [...state.selection.nodeIds];
+          }
+          setRightbarCollapsed(false, { focusInput: true });
+          renderAssistantContext();
         } else {
           beginTemporaryHandTool();
         }
@@ -3470,19 +3603,23 @@ window.addEventListener("keydown", (event) => {
       }
     }
 
-    if (event.key === "Escape" && state.ui.isAssistantOpen) {
-      closeAssistantPanel();
+    if (event.key === "Escape" && !state.ui.isRightbarCollapsed) {
+      setRightbarCollapsed(true);
       return;
     }
 
     return;
   }
 
-  // Compat mode: Space opens AI assistant with selected nodes as context
+  // Compat mode: Space focuses the AI panel with the selected nodes as context.
   if (isSpaceShortcut && shouldOpenAssistantFromSpace(event, target)) {
     event.preventDefault();
     if (!event.repeat) {
-      openAssistantPanel({ focusInput: true });
+      if (state.selection.nodeIds.length > 0) {
+        state.assistant.contextNodeIds = [...state.selection.nodeIds];
+      }
+      setRightbarCollapsed(false, { focusInput: true });
+      renderAssistantContext();
     }
     return;
   }
@@ -3541,8 +3678,8 @@ window.addEventListener("keydown", (event) => {
       },
       editing: null,
     });
-    if (state.ui.isAssistantOpen) {
-      closeAssistantPanel();
+    if (!state.ui.isRightbarCollapsed) {
+      setRightbarCollapsed(true);
       return;
     }
     renderCanvas();
@@ -3858,6 +3995,9 @@ mountWorkspaceEngine().catch((error) => {
   console.error(error instanceof Error ? error.message : "Unable to mount Workspace app.");
 });
 
+loadSidebarStateFromStorage();
+applySidebarLayout();
+renderLeftbarSkills();
 applyInitialRoute();
 applyWorkspaceModeMarkers();
 syncRoute();

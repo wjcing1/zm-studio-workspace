@@ -65,6 +65,7 @@ function parseJsonEnv(value, fallback) {
 const PORT = Number(process.env.PORT || 4173);
 const MINIMAX_BASE_URL = process.env.MINIMAX_BASE_URL || "https://subtp7eu3nc8.tokenclub.top/v1";
 const MODEL = process.env.MINIMAX_MODEL || "gpt-5.5";
+const REASONING_EFFORT = process.env.MINIMAX_REASONING_EFFORT || "xhigh";
 const MAX_UPLOAD_BYTES = Number(process.env.UPLOAD_MAX_BYTES || 25 * 1024 * 1024);
 const CHAT_STREAM_TEST_MODE = process.env.CHAT_STREAM_TEST_MODE === "1";
 const CHAT_STREAM_TEST_TEXT =
@@ -526,10 +527,225 @@ function normalizeWorkspaceBody(body) {
   };
 }
 
+const WORKSPACE_IMAGE_MIME_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/gif",
+  "image/webp",
+  "image/svg+xml",
+  "image/bmp",
+  "image/x-bmp",
+  "image/avif",
+  "image/heic",
+  "image/heif",
+  "image/tiff",
+  "image/x-icon",
+  "image/vnd.microsoft.icon",
+  "image/apng",
+]);
+const WORKSPACE_IMAGE_EXTENSIONS = new Map([
+  [".png", "image/png"],
+  [".apng", "image/apng"],
+  [".jpg", "image/jpeg"],
+  [".jpeg", "image/jpeg"],
+  [".jpe", "image/jpeg"],
+  [".jfif", "image/jpeg"],
+  [".gif", "image/gif"],
+  [".webp", "image/webp"],
+  [".svg", "image/svg+xml"],
+  [".svgz", "image/svg+xml"],
+  [".bmp", "image/bmp"],
+  [".dib", "image/bmp"],
+  [".avif", "image/avif"],
+  [".heic", "image/heic"],
+  [".heif", "image/heif"],
+  [".tif", "image/tiff"],
+  [".tiff", "image/tiff"],
+  [".ico", "image/x-icon"],
+  [".cur", "image/x-icon"],
+]);
+const WORKSPACE_MAX_IMAGE_ATTACHMENTS = Math.max(
+  1,
+  Number(process.env.WORKSPACE_VISION_MAX_IMAGES || 16),
+);
+const WORKSPACE_MAX_IMAGE_BYTES = Math.max(
+  1024 * 1024,
+  Number(process.env.WORKSPACE_VISION_MAX_IMAGE_BYTES || 32 * 1024 * 1024),
+);
+const WORKSPACE_MAX_TOTAL_IMAGE_BYTES = Math.max(
+  WORKSPACE_MAX_IMAGE_BYTES,
+  Number(process.env.WORKSPACE_VISION_MAX_TOTAL_IMAGE_BYTES || 96 * 1024 * 1024),
+);
+
+function inferImageMimeType(node) {
+  const mime = String(node?.mimeType || "").toLowerCase().split(";")[0].trim();
+  if (mime && WORKSPACE_IMAGE_MIME_TYPES.has(mime)) {
+    return mime;
+  }
+  const url = String(node?.file || "").split("?")[0].split("#")[0].toLowerCase();
+  for (const [extension, extMime] of WORKSPACE_IMAGE_EXTENSIONS) {
+    if (url.endsWith(extension)) {
+      return extMime;
+    }
+  }
+  return "";
+}
+
+function isWorkspaceImageNode(node) {
+  if (!node || typeof node !== "object") return false;
+  if (node.type !== "image" && node.type !== "file") return false;
+  if (node.fileKind && node.fileKind !== "image") return false;
+  return Boolean(inferImageMimeType(node));
+}
+
+function resolveLocalUploadPath(urlPath) {
+  if (typeof urlPath !== "string" || !urlPath) return null;
+  const cleaned = urlPath.split("?")[0].split("#")[0];
+
+  // Already a data: or external URL — caller will handle it.
+  if (cleaned.startsWith("data:") || /^https?:\/\//i.test(cleaned)) {
+    return null;
+  }
+
+  // The upload handler stores files under ROOT_DIR and exposes them at "/<rel-path>".
+  const trimmed = cleaned.replace(/^\/+/, "");
+  const candidate = path.resolve(ROOT_DIR, trimmed);
+
+  // Defensive: ensure the resolved path stays under ROOT_DIR.
+  if (!candidate.startsWith(`${ROOT_DIR}${path.sep}`) && candidate !== ROOT_DIR) {
+    return null;
+  }
+
+  return candidate;
+}
+
+async function loadImageAttachmentForNode(node) {
+  const mimeType = inferImageMimeType(node);
+  if (!mimeType) return null;
+  const url = String(node.file || "").trim();
+  if (!url) return null;
+
+  if (url.startsWith("data:")) {
+    return { dataUrl: url, byteSize: url.length, mimeType };
+  }
+
+  if (/^https?:\/\//i.test(url)) {
+    // External URL — pass through; vision-capable models can fetch it directly.
+    return { dataUrl: url, byteSize: 0, mimeType };
+  }
+
+  const localPath = resolveLocalUploadPath(url);
+  if (!localPath) return null;
+
+  try {
+    const buffer = await readFile(localPath);
+    if (buffer.length > WORKSPACE_MAX_IMAGE_BYTES) {
+      console.warn(
+        `Workspace image ${url} (${buffer.length} bytes) exceeds per-image cap (${WORKSPACE_MAX_IMAGE_BYTES} bytes); skipping inline attachment.`,
+      );
+      return null;
+    }
+    return {
+      dataUrl: `data:${mimeType};base64,${buffer.toString("base64")}`,
+      byteSize: buffer.length,
+      mimeType,
+    };
+  } catch (error) {
+    console.warn(
+      `Workspace image ${url} could not be read for AI attachment: ${
+        error instanceof Error ? error.message : "unknown error"
+      }`,
+    );
+    return null;
+  }
+}
+
+async function collectWorkspaceImageAttachments(workspaceContext) {
+  const focus = workspaceContext?.focus || {};
+  const candidates = [];
+  const seen = new Set();
+
+  const addNode = (node) => {
+    if (!isWorkspaceImageNode(node)) return;
+    const key = `${node.id || ""}::${node.file || ""}`;
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    candidates.push(node);
+  };
+
+  // Priority order: explicit context, selected, connected, then visible/board nodes.
+  for (const node of focus.contextNodes || []) addNode(node);
+  for (const node of focus.selectedNodes || []) addNode(node);
+  for (const node of focus.connectedNodes || []) addNode(node);
+  for (const node of focus.visibleNodes || []) addNode(node);
+  for (const node of workspaceContext?.board?.nodes || []) addNode(node);
+
+  const attachments = [];
+  let totalBytes = 0;
+  for (const node of candidates) {
+    if (attachments.length >= WORKSPACE_MAX_IMAGE_ATTACHMENTS) break;
+    const loaded = await loadImageAttachmentForNode(node);
+    if (!loaded) continue;
+    if (totalBytes + loaded.byteSize > WORKSPACE_MAX_TOTAL_IMAGE_BYTES) {
+      console.warn(
+        `Workspace image ${node.file} skipped: total inline budget (${WORKSPACE_MAX_TOTAL_IMAGE_BYTES} bytes) reached.`,
+      );
+      continue;
+    }
+    totalBytes += loaded.byteSize;
+    attachments.push({
+      nodeId: node.id || "",
+      title: node.title || node.label || "",
+      url: loaded.dataUrl,
+      mimeType: loaded.mimeType,
+    });
+  }
+
+  return attachments;
+}
+
+function attachImagesToLastUserMessage(messages, attachments) {
+  if (!Array.isArray(messages) || messages.length === 0 || attachments.length === 0) {
+    return messages;
+  }
+
+  const next = messages.map((message) => ({ ...message }));
+  let lastUserIndex = -1;
+  for (let index = next.length - 1; index >= 0; index -= 1) {
+    if (next[index].role === "user") {
+      lastUserIndex = index;
+      break;
+    }
+  }
+  if (lastUserIndex === -1) return messages;
+
+  const target = next[lastUserIndex];
+  const textContent = typeof target.content === "string" ? target.content : "";
+
+  const contentBlocks = [];
+  if (textContent.trim()) {
+    contentBlocks.push({ type: "text", text: textContent });
+  }
+  for (const attachment of attachments) {
+    contentBlocks.push({
+      type: "image_url",
+      image_url: { url: attachment.url },
+    });
+  }
+
+  next[lastUserIndex] = {
+    role: "user",
+    content: contentBlocks,
+  };
+  return next;
+}
+
 function buildWorkspaceAssistantPrompt(
   workspaceContext,
   memorySection = "Long-term memory:\n- none",
   skillContext = { catalogPrompt: "Workspace skills: none enabled.", detailedPrompt: "", activeSkills: [] },
+  imageAttachments = [],
 ) {
   const hasContext = workspaceContext.focus.contextNodeIds?.length > 0;
   const priorityInstruction = hasContext
@@ -539,6 +755,12 @@ function buildWorkspaceAssistantPrompt(
     Array.isArray(skillContext.activeSkills) && skillContext.activeSkills.length > 0
       ? `Active workspace skills for this request: ${skillContext.activeSkills.map((skill) => skill.id).join(", ")}. Follow their guidance when it fits the user's request, but keep the existing workspace JSON response contract.`
       : "No detailed workspace skill is active for this request. Use the base workspace behavior unless the user asks for a listed skill.";
+  const imageInstruction =
+    Array.isArray(imageAttachments) && imageAttachments.length > 0
+      ? `The user's message includes ${imageAttachments.length} image attachment(s) from the canvas (in order: ${imageAttachments
+          .map((attachment, index) => `#${index + 1} ${attachment.title || attachment.nodeId || "image"}`)
+          .join("; ")}). Examine each image directly when answering and reference it by its node title when relevant.`
+      : "No image attachments accompany this turn — describe images only from the textual board context.";
 
   return [
     "You are the workspace canvas copilot for ZM Studio.",
@@ -562,6 +784,7 @@ function buildWorkspaceAssistantPrompt(
     "Match the user's language when possible.",
     skillContext.catalogPrompt,
     activeSkillInstruction,
+    imageInstruction,
     skillContext.detailedPrompt ? `Detailed skill guidance:\n${skillContext.detailedPrompt}` : "",
     "",
     memorySection,
@@ -698,6 +921,7 @@ async function handleChat(request, response) {
         messages: chatMessages,
         extra_body: {
           reasoning_split: true,
+          reasoning_effort: REASONING_EFFORT,
         },
       });
 
@@ -735,6 +959,7 @@ async function handleChat(request, response) {
       messages: chatMessages,
       extra_body: {
         reasoning_split: true,
+        reasoning_effort: REASONING_EFFORT,
       },
     });
 
@@ -814,6 +1039,10 @@ async function handleWorkspaceAssistant(request, response) {
     limit: 5,
   });
   const memorySection = formatMemoriesForPrompt(relevantMemories);
+  const imageAttachments = await collectWorkspaceImageAttachments(workspaceContext);
+  const augmentedMessages = imageAttachments.length > 0
+    ? attachImagesToLastUserMessage(messages, imageAttachments)
+    : messages;
 
   try {
     const completion = await client.chat.completions.create({
@@ -821,12 +1050,13 @@ async function handleWorkspaceAssistant(request, response) {
       messages: [
         {
           role: "system",
-          content: buildWorkspaceAssistantPrompt(workspaceContext, memorySection, skillContext),
+          content: buildWorkspaceAssistantPrompt(workspaceContext, memorySection, skillContext, imageAttachments),
         },
-        ...messages,
+        ...augmentedMessages,
       ],
       extra_body: {
         reasoning_split: true,
+        reasoning_effort: REASONING_EFFORT,
       },
     });
 

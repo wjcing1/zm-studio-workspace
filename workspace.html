@@ -17,51 +17,88 @@
     <script src="./scripts/shared/auth.js?v=2026-03-30-auth-3"></script>
     <script src="./scripts/shared/auth-guard.js?v=2026-03-30-auth-3"></script>
     <link rel="stylesheet" href="./styles/shared.css?v=2026-03-30-auth-1" />
-    <link rel="stylesheet" href="./styles/workspace.css?v=2026-03-31-file-1" />
+    <link rel="stylesheet" href="./styles/workspace.css?v=2026-04-27-sidebar-1" />
   </head>
-  <body data-page="zm-workspace">
-    <div class="app-shell">
-      <header class="topbar">
-        <a class="brand" href="./workspace.html" aria-label="Open workspace">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 3 19 7v10l-7 4-7-4V7Z"></path>
-          </svg>
-          <span class="brand-name">zm studio</span>
-        </a>
+  <body data-page="zm-workspace" data-workspace-layout="three-col">
+    <div class="app-shell workspace-three-col" data-left-collapsed="false" data-right-collapsed="false">
+      <aside class="workspace-leftbar" id="workspaceLeftbar" aria-label="Workspace navigation">
+        <div class="leftbar-head">
+          <a class="brand brand--leftbar" href="./workspace.html" aria-label="Open workspace">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3 19 7v10l-7 4-7-4V7Z"></path>
+            </svg>
+            <span class="brand-name">zm studio</span>
+          </a>
+          <button
+            class="sidebar-collapse"
+            id="leftbarCollapseBtn"
+            type="button"
+            aria-label="Collapse navigation sidebar"
+            aria-controls="workspaceLeftbar"
+            aria-expanded="true"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m15 18-6-6 6-6"></path>
+            </svg>
+          </button>
+        </div>
 
-        <nav class="nav" aria-label="Studio pages">
-          <a class="nav-link is-active" href="./workspace.html">
+        <nav class="leftbar-nav" aria-label="Studio pages">
+          <a class="leftbar-link is-active" href="./workspace.html">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <rect x="3" y="4" width="7" height="7" rx="1.5"></rect>
               <rect x="14" y="4" width="7" height="7" rx="1.5"></rect>
               <rect x="3" y="13" width="7" height="7" rx="1.5"></rect>
               <rect x="14" y="13" width="7" height="7" rx="1.5"></rect>
             </svg>
-            Workspace
+            <span class="leftbar-link-label">Workspace</span>
           </a>
-          <a class="nav-link" href="./projects.html">
+          <a class="leftbar-link" href="./projects.html">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <ellipse cx="12" cy="5.5" rx="7" ry="3"></ellipse>
               <path d="M5 5.5v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"></path>
               <path d="M5 11.5v7c0 1.7 3.1 3 7 3s7-1.3 7-3v-7"></path>
             </svg>
-            Projects
+            <span class="leftbar-link-label">Projects</span>
           </a>
-          <a class="nav-link" href="./assets.html">
+          <a class="leftbar-link" href="./assets.html">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M3 7.5 12 3l9 4.5-9 4.5Z"></path>
               <path d="M3 12l9 4.5 9-4.5"></path>
               <path d="M3 16.5 12 21l9-4.5"></path>
             </svg>
-            Assets
+            <span class="leftbar-link-label">Assets</span>
           </a>
         </nav>
 
-        <div class="session-cluster" aria-label="Session actions">
-          <div class="session-chip" data-auth-session-label>Studio Access</div>
-          <button class="session-link" type="button" data-auth-logout>Log Out</button>
+        <section class="leftbar-section" aria-label="Workspace assistant skills">
+          <div class="leftbar-section-head">
+            <span class="leftbar-section-kicker">Skills</span>
+          </div>
+          <div class="leftbar-skill-list" id="leftbarSkillList" data-empty="true">
+            <p class="leftbar-skill-empty">Loading workspace skills…</p>
+          </div>
+        </section>
+
+        <div class="leftbar-foot">
+          <div class="session-chip session-chip--leftbar" data-auth-session-label>Studio Access</div>
+          <button class="session-link session-link--leftbar" type="button" data-auth-logout>Log Out</button>
         </div>
-      </header>
+      </aside>
+
+      <button
+        class="sidebar-rail-toggle sidebar-rail-toggle--left"
+        id="leftbarExpandBtn"
+        type="button"
+        aria-label="Expand navigation sidebar"
+        aria-controls="workspaceLeftbar"
+        aria-expanded="false"
+        hidden
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m9 6 6 6-6 6"></path>
+        </svg>
+      </button>
 
       <main class="workspace-shell">
         <section aria-label="Workspace canvas">
@@ -111,69 +148,6 @@
             <div class="collaboration-presence-layer" id="collaborationPresenceLayer" aria-hidden="true"></div>
             <div class="marquee-selection" id="marqueeSelection" hidden></div>
 
-            <button
-              class="assistant-companion"
-              id="assistantCompanion"
-              type="button"
-              aria-label="Open workspace AI panel"
-              aria-haspopup="dialog"
-              aria-controls="workspaceAssistantPanel"
-            >
-              <span class="assistant-companion-core" aria-hidden="true"></span>
-            </button>
-
-            <aside class="workspace-assistant panel-surface" id="workspaceAssistantPanel" hidden aria-label="Workspace assistant">
-              <div class="workspace-assistant-sheet">
-                <div class="workspace-assistant-head">
-                  <div>
-                    <div class="assistant-kicker">Canvas Copilot</div>
-                    <h2 class="workspace-assistant-title">Think With The Board</h2>
-                  </div>
-                  <button class="workspace-assistant-close" id="assistantCloseBtn" type="button">Close</button>
-                </div>
-
-                <div class="workspace-assistant-body" id="workspaceAssistantBody">
-                  <p class="workspace-assistant-context" id="assistantContextSummary">
-                    Select nodes and press Space to focus the AI on them. The full canvas is always understood.
-                  </p>
-
-                  <section
-                    class="workspace-assistant-starters-region"
-                    id="assistantStartersRegion"
-                    data-state="visible"
-                    aria-label="Workspace assistant starter prompts"
-                  >
-                    <div class="assistant-starters" id="assistantStarters"></div>
-                  </section>
-
-                  <div
-                    class="workspace-assistant-timeline"
-                    id="assistantTimeline"
-                    role="log"
-                    aria-live="polite"
-                    aria-relevant="additions text"
-                  >
-                    <div class="assistant-thread" id="assistantMessages"></div>
-                  </div>
-                </div>
-
-                <div class="workspace-assistant-footer" id="workspaceAssistantFooter">
-                  <form class="assistant-composer" id="assistantComposer">
-                    <textarea
-                      class="assistant-input"
-                      id="assistantInput"
-                      name="assistantInput"
-                      placeholder="Ask about the selected nodes or the full canvas..."
-                    ></textarea>
-                    <button class="assistant-send" id="assistantSend" type="submit">Apply With AI</button>
-                  </form>
-                  <div class="assistant-status" id="assistantStatus">
-                    Workspace AI requires a server backend. GitHub Pages serves the static canvas only.
-                  </div>
-                </div>
-              </div>
-            </aside>
-
             <input
               id="canvasImportInput"
               type="file"
@@ -204,13 +178,89 @@
                 </svg>
                 Reset View
               </button>
-              <button class="hud-btn" id="assistantToggleBtn" type="button">AI Panel</button>
             </div>
           </div>
         </section>
       </main>
+
+      <button
+        class="sidebar-rail-toggle sidebar-rail-toggle--right"
+        id="rightbarExpandBtn"
+        type="button"
+        aria-label="Expand AI sidebar"
+        aria-controls="workspaceAssistantPanel"
+        aria-expanded="false"
+        hidden
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m15 6-6 6 6 6"></path>
+        </svg>
+      </button>
+
+      <aside class="workspace-assistant panel-surface" id="workspaceAssistantPanel" aria-label="Workspace assistant">
+        <div class="workspace-assistant-sheet">
+          <div class="workspace-assistant-head">
+            <div>
+              <div class="assistant-kicker">Canvas Copilot</div>
+              <h2 class="workspace-assistant-title">Think With The Board</h2>
+            </div>
+            <button
+              class="sidebar-collapse"
+              id="assistantCloseBtn"
+              type="button"
+              aria-label="Collapse AI sidebar"
+              aria-controls="workspaceAssistantPanel"
+              aria-expanded="true"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m9 6 6 6-6 6"></path>
+              </svg>
+            </button>
+          </div>
+
+          <div class="workspace-assistant-body" id="workspaceAssistantBody">
+            <p class="workspace-assistant-context" id="assistantContextSummary">
+              Select nodes on the canvas to focus the AI on them. The full canvas is always understood.
+            </p>
+
+            <section
+              class="workspace-assistant-starters-region"
+              id="assistantStartersRegion"
+              data-state="visible"
+              aria-label="Workspace assistant starter prompts"
+            >
+              <div class="assistant-starters" id="assistantStarters"></div>
+            </section>
+
+            <div
+              class="workspace-assistant-timeline"
+              id="assistantTimeline"
+              role="log"
+              aria-live="polite"
+              aria-relevant="additions text"
+            >
+              <div class="assistant-thread" id="assistantMessages"></div>
+            </div>
+          </div>
+
+          <div class="workspace-assistant-footer" id="workspaceAssistantFooter">
+            <form class="assistant-composer" id="assistantComposer">
+              <textarea
+                class="assistant-input"
+                id="assistantInput"
+                name="assistantInput"
+                placeholder="Ask about the selected nodes or the full canvas..."
+              ></textarea>
+              <button class="assistant-send" id="assistantSend" type="submit">Apply With AI</button>
+            </form>
+            <div class="assistant-status" id="assistantStatus">
+              Workspace AI requires a server backend. GitHub Pages serves the static canvas only.
+            </div>
+          </div>
+        </div>
+      </aside>
     </div>
 
-    <script type="module" src="./scripts/workspace-page.js?v=2026-04-07-paste-fix-2"></script>
+    <script type="module" src="./scripts/workspace-page.js?v=2026-04-27-sidebar-1"></script>
   </body>
 </html>

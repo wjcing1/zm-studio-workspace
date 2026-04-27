@@ -129,17 +129,6 @@
                 <span class="canvas-context-toggle-icon" aria-hidden="true"></span>
                 <span id="canvasContextToggleLabel">Show Overview</span>
               </button>
-              <div class="canvas-toolbar panel-surface" id="canvasToolbar" aria-label="Canvas tools">
-                <button class="canvas-tool-btn" id="addTextNodeBtn" type="button">Text</button>
-                <button class="canvas-tool-btn" id="addFileNodeBtn" type="button">File</button>
-                <button class="canvas-tool-btn" id="addLinkNodeBtn" type="button">Link</button>
-                <button class="canvas-tool-btn" id="addGroupNodeBtn" type="button">Group</button>
-                <button class="canvas-tool-btn" id="connectNodesBtn" type="button" aria-pressed="false">Connect</button>
-                <button class="canvas-tool-btn" id="undoCanvasBtn" type="button">Undo</button>
-                <button class="canvas-tool-btn" id="redoCanvasBtn" type="button">Redo</button>
-                <button class="canvas-tool-btn" id="canvasImportBtn" type="button">Import</button>
-                <button class="canvas-tool-btn" id="canvasExportBtn" type="button">Export</button>
-              </div>
             </div>
             <div class="canvas-grid" id="canvasGrid"></div>
             <div class="workspace-canvas-app" id="workspaceCanvasApp" data-workspace-engine="legacy-shell"></div>
@@ -178,6 +167,22 @@
                 </svg>
                 Reset View
               </button>
+              <button class="hud-btn" id="canvasImportBtn" type="button" aria-label="Import canvas JSON">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 4v12"></path>
+                  <path d="m7 11 5 5 5-5"></path>
+                  <path d="M5 20h14"></path>
+                </svg>
+                Import
+              </button>
+              <button class="hud-btn" id="canvasExportBtn" type="button" aria-label="Export canvas JSON">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 20V8"></path>
+                  <path d="m7 13 5-5 5 5"></path>
+                  <path d="M5 4h14"></path>
+                </svg>
+                Export
+              </button>
             </div>
           </div>
         </section>
@@ -198,24 +203,51 @@
       </button>
 
       <aside class="workspace-assistant panel-surface" id="workspaceAssistantPanel" aria-label="Workspace assistant">
-        <div class="workspace-assistant-sheet">
+        <div class="workspace-assistant-sheet" data-history-open="false">
           <div class="workspace-assistant-head">
             <div>
-              <div class="assistant-kicker">Canvas Copilot</div>
               <h2 class="workspace-assistant-title">Think With The Board</h2>
             </div>
-            <button
-              class="sidebar-collapse"
-              id="assistantCloseBtn"
-              type="button"
-              aria-label="Collapse AI sidebar"
-              aria-controls="workspaceAssistantPanel"
-              aria-expanded="true"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m9 6 6 6-6 6"></path>
-              </svg>
-            </button>
+            <div class="assistant-head-actions">
+              <button
+                class="assistant-icon-btn"
+                id="assistantNewChatBtn"
+                type="button"
+                aria-label="Start a new conversation"
+                title="New chat"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 5v14"></path>
+                  <path d="M5 12h14"></path>
+                </svg>
+              </button>
+              <button
+                class="assistant-icon-btn"
+                id="assistantHistoryBtn"
+                type="button"
+                aria-label="Show conversation history"
+                aria-expanded="false"
+                aria-controls="assistantHistoryPanel"
+                title="History"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="12" r="9"></circle>
+                  <path d="M12 7v5l3 2"></path>
+                </svg>
+              </button>
+              <button
+                class="sidebar-collapse"
+                id="assistantCloseBtn"
+                type="button"
+                aria-label="Collapse AI sidebar"
+                aria-controls="workspaceAssistantPanel"
+                aria-expanded="true"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m9 6 6 6-6 6"></path>
+                </svg>
+              </button>
+            </div>
           </div>
 
           <div class="workspace-assistant-body" id="workspaceAssistantBody">
@@ -241,6 +273,30 @@
             >
               <div class="assistant-thread" id="assistantMessages"></div>
             </div>
+
+            <section
+              class="workspace-assistant-history"
+              id="assistantHistoryPanel"
+              aria-label="Conversation history"
+              hidden
+            >
+              <div class="assistant-history-head">
+                <span class="assistant-history-title">历史对话</span>
+                <button
+                  class="assistant-icon-btn"
+                  id="assistantHistoryCloseBtn"
+                  type="button"
+                  aria-label="Close history"
+                  title="Close"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M6 6l12 12"></path>
+                    <path d="M18 6 6 18"></path>
+                  </svg>
+                </button>
+              </div>
+              <div class="assistant-history-list" id="assistantHistoryList" data-empty="true"></div>
+            </section>
           </div>
 
           <div class="workspace-assistant-footer" id="workspaceAssistantFooter">

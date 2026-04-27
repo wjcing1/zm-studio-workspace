@@ -75,6 +75,8 @@ function parseJsonEnv(value, fallback) {
 const PORT = Number(process.env.PORT || 4173);
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || "https://subtp7eu3nc8.tokenclub.top/v1";
 const MODEL = process.env.OPENAI_MODEL || "gpt-5.5";
+const IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || "gpt-image-2";
+const IMAGE_SIZE = process.env.OPENAI_IMAGE_SIZE || "1024x1024";
 const REASONING_EFFORT = process.env.OPENAI_REASONING_EFFORT || "xhigh";
 const MAX_UPLOAD_BYTES = Number(process.env.UPLOAD_MAX_BYTES || 25 * 1024 * 1024);
 const CHAT_STREAM_TEST_MODE = process.env.CHAT_STREAM_TEST_MODE === "1";
@@ -299,6 +301,81 @@ function inferUploadKind(mimeType, filename = "") {
   }
 
   return "other";
+}
+
+function buildGeneratedImageFilename(prompt) {
+  const slug = sanitizePathSegment(String(prompt || "ai-image").slice(0, 60), "ai-image");
+  return `ai-${Date.now()}-${Math.floor(Math.random() * 1000)}-${slug}.png`;
+}
+
+async function fetchImageBufferFromUrl(url) {
+  const fetchImpl = typeof fetch === "function" ? fetch : null;
+  if (!fetchImpl) {
+    throw new Error("Global fetch is not available to download generated image.");
+  }
+  const res = await fetchImpl(url);
+  if (!res.ok) {
+    throw new Error(`Generated image download failed with status ${res.status}.`);
+  }
+  const arrayBuffer = await res.arrayBuffer();
+  const headerMime = normalizeMimeType(res.headers.get("content-type") || "") || "image/png";
+  return { buffer: Buffer.from(arrayBuffer), mimeType: headerMime };
+}
+
+async function generateAndSaveImageForBoard({ prompt, boardKey, size }) {
+  if (!client) {
+    throw new Error("AI client is not configured.");
+  }
+  const trimmedPrompt = String(prompt || "").trim();
+  if (!trimmedPrompt) {
+    throw new Error("Image generation requires a non-empty prompt.");
+  }
+
+  const safeBoardKey = sanitizePathSegment(boardKey, "overview");
+  const requestedSize = typeof size === "string" && size.trim() ? size.trim() : IMAGE_SIZE;
+
+  const result = await client.images.generate({
+    model: IMAGE_MODEL,
+    prompt: trimmedPrompt,
+    n: 1,
+    size: requestedSize,
+  });
+
+  const item = Array.isArray(result?.data) ? result.data[0] : null;
+  if (!item) {
+    throw new Error("Image API returned no data.");
+  }
+
+  let buffer;
+  let mimeType = "image/png";
+  if (typeof item.b64_json === "string" && item.b64_json) {
+    buffer = Buffer.from(item.b64_json, "base64");
+  } else if (typeof item.url === "string" && item.url) {
+    const downloaded = await fetchImageBufferFromUrl(item.url);
+    buffer = downloaded.buffer;
+    mimeType = downloaded.mimeType || mimeType;
+  } else {
+    throw new Error("Image API response did not include image data.");
+  }
+
+  const storedName = buildGeneratedImageFilename(trimmedPrompt);
+  const boardDir = path.join(uploadStorageDir, safeBoardKey);
+  const storedPath = path.join(boardDir, storedName);
+  await mkdir(boardDir, { recursive: true });
+  await writeFile(storedPath, buffer);
+
+  const urlPath = `/${path.relative(ROOT_DIR, storedPath).split(path.sep).join("/")}`;
+
+  return {
+    url: urlPath,
+    mimeType,
+    fileKind: inferUploadKind(mimeType, storedName),
+    storedName,
+    size: buffer.length,
+    prompt: trimmedPrompt,
+    boardKey: safeBoardKey,
+    model: IMAGE_MODEL,
+  };
 }
 
 function normalizeChatAgent(value) {
@@ -837,10 +914,11 @@ function buildWorkspaceAssistantPrompt(
     availableSkillsXml,
     "",
     "When you are ready to give the FINAL answer to the user (no more tool calls needed), return JSON only with this shape:",
-    '{"reply":"short helpful response","operations":[{"type":"addNode","node":{}},{"type":"updateNode","id":"node-id","patch":{}},{"type":"removeNode","id":"node-id"},{"type":"addEdge","edge":{}},{"type":"removeEdge","id":"edge-id"}]}',
-    "Allowed node types: text, link, group, image, project.",
+    '{"reply":"short helpful response","operations":[{"type":"addNode","node":{}},{"type":"updateNode","id":"node-id","patch":{}},{"type":"removeNode","id":"node-id"},{"type":"addEdge","edge":{}},{"type":"removeEdge","id":"edge-id"},{"type":"generateImage","prompt":"...","x":0,"y":0,"w":360,"h":280,"title":"optional"}]}',
+    "Allowed node types: text, link, group, image, project, file.",
     "For addNode include id, type, x, y, w, h and any relevant content fields.",
     "For addEdge include id, from, to, fromSide, toSide, and optional label.",
+    "When the user asks you to generate, draw, paint, or create an image (e.g. \"帮我生成一张图片\", \"画一张...\", \"generate an image of...\"), emit a generateImage operation instead of an addNode. Provide a vivid, self-contained English prompt of 1-3 sentences in the prompt field. Pick a reasonable canvas position near the focused area (or 0,0 if unknown) and use w around 360 and h around 280 unless the user requests another aspect. The server will run the image model, save the file, and insert it onto the canvas as an image card automatically — do not invent a file URL yourself.",
     "Never reference node IDs that do not exist when updating or removing.",
     "Prefer small, precise edits over rewriting the whole board.",
     "If the request is only analytical, return operations as an empty array.",
@@ -880,10 +958,27 @@ function normalizeWorkspaceOperations(input) {
             label: typeof operation.node.label === "string" ? operation.node.label.slice(0, 200) : "",
             content: typeof operation.node.content === "string" ? operation.node.content.slice(0, 9600) : "",
             url: typeof operation.node.url === "string" ? operation.node.url.slice(0, 500) : "",
+            file: typeof operation.node.file === "string" ? operation.node.file.slice(0, 500) : "",
+            fileKind: typeof operation.node.fileKind === "string" ? operation.node.fileKind.slice(0, 24) : "",
+            mimeType: typeof operation.node.mimeType === "string" ? operation.node.mimeType.slice(0, 60) : "",
             tags: Array.isArray(operation.node.tags)
               ? operation.node.tags.map((tag) => String(tag).slice(0, 60)).slice(0, 8)
               : [],
           },
+        };
+      }
+
+      if (type === "generateImage" && typeof operation?.prompt === "string" && operation.prompt.trim()) {
+        return {
+          type,
+          prompt: operation.prompt.slice(0, 1200),
+          x: typeof operation.x === "number" ? Math.round(operation.x) : 0,
+          y: typeof operation.y === "number" ? Math.round(operation.y) : 0,
+          w: typeof operation.w === "number" ? Math.max(160, Math.round(operation.w)) : 360,
+          h: typeof operation.h === "number" ? Math.max(120, Math.round(operation.h)) : 280,
+          title: typeof operation.title === "string" ? operation.title.slice(0, 200) : "",
+          size: typeof operation.size === "string" ? operation.size.slice(0, 24) : "",
+          id: typeof operation.id === "string" ? operation.id.slice(0, 120) : "",
         };
       }
 
@@ -934,6 +1029,66 @@ function normalizeWorkspaceOperations(input) {
       return null;
     })
     .filter(Boolean);
+}
+
+async function expandGenerateImageOperations(operations, { boardKey } = {}) {
+  if (!Array.isArray(operations) || operations.length === 0) {
+    return { operations: [], generated: [] };
+  }
+
+  const expanded = [];
+  const generated = [];
+
+  for (const operation of operations) {
+    if (operation?.type !== "generateImage") {
+      expanded.push(operation);
+      continue;
+    }
+
+    try {
+      const result = await generateAndSaveImageForBoard({
+        prompt: operation.prompt,
+        boardKey,
+        size: operation.size,
+      });
+
+      const nodeId =
+        operation.id && typeof operation.id === "string" && operation.id.trim()
+          ? operation.id
+          : `image-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+      expanded.push({
+        type: "addNode",
+        node: {
+          id: nodeId,
+          type: "file",
+          x: typeof operation.x === "number" ? operation.x : 0,
+          y: typeof operation.y === "number" ? operation.y : 0,
+          w: typeof operation.w === "number" ? operation.w : 360,
+          h: typeof operation.h === "number" ? operation.h : 280,
+          title: operation.title || result.storedName,
+          label: operation.title || "",
+          content: result.url,
+          file: result.url,
+          fileKind: result.fileKind,
+          mimeType: result.mimeType,
+          tags: [],
+        },
+      });
+
+      generated.push({ id: nodeId, prompt: result.prompt, url: result.url });
+    } catch (error) {
+      console.warn(
+        `Image generation failed: ${error instanceof Error ? error.message : "unknown error"}`,
+      );
+      generated.push({
+        error: error instanceof Error ? error.message : "Image generation failed.",
+        prompt: operation.prompt,
+      });
+    }
+  }
+
+  return { operations: expanded, generated };
 }
 
 async function handleChat(request, response) {
@@ -1227,6 +1382,24 @@ async function handleWorkspaceAssistant(request, response) {
       reply = typeof payload.reply === "string" && payload.reply.trim() ? payload.reply.trim() : finalAssistantText;
       operations = normalizeWorkspaceOperations(payload.operations);
     } catch {}
+
+    const expansion = await expandGenerateImageOperations(operations, {
+      boardKey: workspaceContext?.board?.key,
+    });
+    operations = expansion.operations;
+    if (expansion.generated.length > 0) {
+      const okCount = expansion.generated.filter((entry) => !entry.error).length;
+      const failCount = expansion.generated.length - okCount;
+      const summaryParts = [];
+      if (okCount > 0) summaryParts.push(`Generated ${okCount} image${okCount > 1 ? "s" : ""}.`);
+      if (failCount > 0) {
+        const firstError = expansion.generated.find((entry) => entry.error)?.error;
+        summaryParts.push(
+          `${failCount} image generation${failCount > 1 ? "s" : ""} failed${firstError ? `: ${firstError}` : "."}`,
+        );
+      }
+      reply = reply ? `${reply}\n\n${summaryParts.join(" ")}` : summaryParts.join(" ");
+    }
 
     const extractedMemories = extractDurableMemories({ workspaceContext, messages });
 

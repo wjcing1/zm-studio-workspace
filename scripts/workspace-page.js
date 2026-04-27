@@ -2840,13 +2840,41 @@ async function sendAssistantMessage(rawText) {
       let sawChunk = false;
       let streamError = "";
       let donePayload = null;
+      const toolStatusLines = new Map();
+      let firstChunkSeen = false;
+
+      const renderToolStatus = () => {
+        if (firstChunkSeen) return;
+        const lines = Array.from(toolStatusLines.values());
+        replacePendingAssistantMessage(state.assistant.messages, lines.join("\n"));
+        renderAssistantThread();
+      };
 
       await consumeAssistantEventReader(reader, {
         onChunk(payload) {
+          if (!firstChunkSeen) {
+            firstChunkSeen = true;
+            replacePendingAssistantMessage(state.assistant.messages, "");
+          }
           appendPendingAssistantMessage(state.assistant.messages, payload.delta);
           state.assistant.backendReady = true;
           sawChunk = true;
           renderAssistantThread();
+        },
+        onToolCallStart(payload) {
+          if (firstChunkSeen) return;
+          state.assistant.backendReady = true;
+          const id = payload.tool_call_id || `${payload.name}-${toolStatusLines.size}`;
+          toolStatusLines.set(id, `⏳ ${payload.name}…`);
+          renderToolStatus();
+        },
+        onToolCallEnd(payload) {
+          if (firstChunkSeen) return;
+          const id = payload.tool_call_id || `${payload.name}-${toolStatusLines.size}`;
+          const icon = payload.ok ? "✓" : "⚠";
+          const summary = payload.summary ? ` ${payload.summary}` : "";
+          toolStatusLines.set(id, `${icon} ${payload.name}${summary}`);
+          renderToolStatus();
         },
         onError(payload) {
           streamError = typeof payload.error === "string" ? payload.error : "Workspace AI stream failed.";

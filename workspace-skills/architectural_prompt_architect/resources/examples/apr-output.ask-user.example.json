@@ -1,0 +1,51 @@
+{
+  "schema_version": "apr-json-1.2",
+  "status": "ASK_USER",
+  "request_id": "demo-20260225-ask-user-001",
+  "mandatory_check": {
+    "pass": false,
+    "missing": [
+      "lighting_atmosphere",
+      "core_material"
+    ],
+    "sources": {
+      "lighting_source": "MISSING",
+      "core_material_source": "MISSING"
+    }
+  },
+  "gate_report": {
+    "narrative": {
+      "N0": 0,
+      "N1": 0,
+      "N2": 0,
+      "score": 0,
+      "decision": "pass"
+    },
+    "physics": {
+      "P0": 0,
+      "P1": 0,
+      "P2": 0,
+      "score": 0,
+      "decision": "pass"
+    }
+  },
+  "tokens": {
+    "materials": []
+  },
+  "scene_assignments": [],
+  "prompt": {
+    "positive_en": "",
+    "negative_en": ""
+  },
+  "questions": [
+    {
+      "question_id": "q_lighting_core_material",
+      "text": "为了达到最佳效果，请确认：您希望是日景、黄昏还是阴天？建筑主体材质是混凝土、玻璃还是木材？",
+      "options": [
+        "日景 + 混凝土",
+        "黄昏 + 玻璃",
+        "阴天 + 木材"
+      ]
+    }
+  ]
+}

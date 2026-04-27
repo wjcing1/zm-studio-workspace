@@ -1,7 +1,7 @@
 # Assets AI Chat Design
 
 ## Goal
-Add a real AI chat assistant on the right side of the `Digital Assets` page so visitors can ask about studio projects, locations, and experience, while keeping the MiniMax API key on the server only.
+Add a real AI chat assistant on the right side of the `Digital Assets` page so visitors can ask about studio projects, locations, and experience, while keeping the OpenAI API key on the server only.
 
 ## User Experience
 - The `Assets` page becomes a two-column layout on desktop.
@@ -32,9 +32,9 @@ Add a real AI chat assistant on the right side of the `Digital Assets` page so v
 - `POST /api/chat`:
   - reads the shared studio data
   - builds a constrained system/developer prompt
-  - sends the conversation to MiniMax through the OpenAI-compatible Chat Completions API
+  - sends the conversation to OpenAI through the OpenAI-compatible Chat Completions API
   - returns only the assistant reply and lightweight metadata
-- If `MINIMAX_API_KEY` is missing, return a helpful `503` JSON error instead of failing silently.
+- If `OPENAI_API_KEY` is missing, return a helpful `503` JSON error instead of failing silently.
 
 ## Frontend Integration
 - `222.html` stops owning project and asset arrays directly.
@@ -51,6 +51,6 @@ Add a real AI chat assistant on the right side of the `Digital Assets` page so v
 - `node server.mjs`
 - Optional env vars:
   - `PORT`
-  - `MINIMAX_API_KEY`
-  - `MINIMAX_MODEL`
-  - `MINIMAX_BASE_URL`
+  - `OPENAI_API_KEY`
+  - `OPENAI_MODEL`
+  - `OPENAI_BASE_URL`

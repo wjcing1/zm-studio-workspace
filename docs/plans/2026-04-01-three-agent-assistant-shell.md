@@ -6,7 +6,7 @@
 
 **Architecture:** Extract the current Projects assistant UI into a shared shell stylesheet and JavaScript helper, then attach page-specific agent adapters for Projects, Assets, and Workspace. Keep `/api/chat` as a shared streaming text route for Projects and Assets with explicit agent scope, while preserving `/api/workspace-assistant` as a dedicated streaming route that can still return final board operations.
 
-**Tech Stack:** Static HTML, vanilla JavaScript modules, shared CSS, Node HTTP server, OpenAI-compatible MiniMax API, Node and Playwright verification scripts
+**Tech Stack:** Static HTML, vanilla JavaScript modules, shared CSS, Node HTTP server, OpenAI-compatible OpenAI API, Node and Playwright verification scripts
 
 ---
 

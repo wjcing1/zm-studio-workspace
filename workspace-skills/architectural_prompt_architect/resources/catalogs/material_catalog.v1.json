@@ -1,0 +1,291 @@
+{
+  "catalog_version": "material_catalog.v1",
+  "generated_at": "2026-02-18",
+  "id_pattern": "mat.<family>.<type>.<finish>.v<major>",
+  "source": "Seeded from resources/categories.csv material rows and resources/corpus.md vocabulary.",
+  "finish_tokens": [
+    {
+      "finish_id": "finish.clean",
+      "label": "Clean/Pristine"
+    },
+    {
+      "finish_id": "finish.weathered",
+      "label": "Weathered/Patina"
+    },
+    {
+      "finish_id": "finish.wet",
+      "label": "Wet Surface"
+    }
+  ],
+  "materials": [
+    {
+      "material_id": "mat.concrete.fair_faced.white_matte.v1",
+      "legacy_ids": [
+        "mat_white_concrete"
+      ],
+      "family": "concrete",
+      "type": "fair_faced",
+      "finish": "white_matte",
+      "default_color_id": "col.ral.9016.v1",
+      "allowed_finish_ids": [
+        "finish.clean",
+        "finish.weathered",
+        "finish.wet"
+      ],
+      "pbr_range": {
+        "roughness": [
+          0.65,
+          0.9
+        ],
+        "metalness": [
+          0.0,
+          0.0
+        ],
+        "ior": [
+          1.48,
+          1.55
+        ]
+      },
+      "notes": "White fair-faced concrete, matte finish, clean surface."
+    },
+    {
+      "material_id": "mat.concrete.board_formed.raw_gray.v1",
+      "legacy_ids": [
+        "mat_raw_concrete"
+      ],
+      "family": "concrete",
+      "type": "board_formed",
+      "finish": "raw_gray",
+      "default_color_id": "col.ral.7043.v1",
+      "allowed_finish_ids": [
+        "finish.clean",
+        "finish.weathered",
+        "finish.wet"
+      ],
+      "pbr_range": {
+        "roughness": [
+          0.7,
+          0.95
+        ],
+        "metalness": [
+          0.0,
+          0.0
+        ],
+        "ior": [
+          1.48,
+          1.55
+        ]
+      },
+      "notes": "Raw board-formed concrete with visible formwork texture."
+    },
+    {
+      "material_id": "mat.glass.curtain_wall.clear_reflective.v1",
+      "legacy_ids": [
+        "mat_glass"
+      ],
+      "family": "glass",
+      "type": "curtain_wall",
+      "finish": "clear_reflective",
+      "default_color_id": "col.hex.87ceeb.v1",
+      "allowed_finish_ids": [
+        "finish.clean",
+        "finish.wet"
+      ],
+      "pbr_range": {
+        "roughness": [
+          0.01,
+          0.12
+        ],
+        "metalness": [
+          0.0,
+          0.0
+        ],
+        "ior": [
+          1.5,
+          1.55
+        ]
+      },
+      "notes": "High transparency curtain wall with strong sky reflection."
+    },
+    {
+      "material_id": "mat.metal.aluminum.powder_coated_white.v1",
+      "legacy_ids": [
+        "mat_white_metal"
+      ],
+      "family": "metal",
+      "type": "aluminum",
+      "finish": "powder_coated_white",
+      "default_color_id": "col.ral.9016.v1",
+      "allowed_finish_ids": [
+        "finish.clean",
+        "finish.weathered",
+        "finish.wet"
+      ],
+      "pbr_range": {
+        "roughness": [
+          0.2,
+          0.45
+        ],
+        "metalness": [
+          0.8,
+          1.0
+        ],
+        "ior": [
+          1.35,
+          1.45
+        ]
+      },
+      "notes": "White powder-coated aluminum panel facade."
+    },
+    {
+      "material_id": "mat.metal.stainless.polished.v1",
+      "legacy_ids": [
+        "mat_stainless"
+      ],
+      "family": "metal",
+      "type": "stainless",
+      "finish": "polished",
+      "default_color_id": "col.ral.9006.v1",
+      "allowed_finish_ids": [
+        "finish.clean",
+        "finish.weathered",
+        "finish.wet"
+      ],
+      "pbr_range": {
+        "roughness": [
+          0.03,
+          0.2
+        ],
+        "metalness": [
+          0.9,
+          1.0
+        ],
+        "ior": [
+          2.4,
+          3.2
+        ]
+      },
+      "notes": "Polished stainless with high specular response."
+    },
+    {
+      "material_id": "mat.wood.oak.warm_cladding.v1",
+      "legacy_ids": [
+        "mat_wood"
+      ],
+      "family": "wood",
+      "type": "oak",
+      "finish": "warm_cladding",
+      "default_color_id": "col.ral.8001.v1",
+      "allowed_finish_ids": [
+        "finish.clean",
+        "finish.weathered",
+        "finish.wet"
+      ],
+      "pbr_range": {
+        "roughness": [
+          0.45,
+          0.75
+        ],
+        "metalness": [
+          0.0,
+          0.0
+        ],
+        "ior": [
+          1.45,
+          1.55
+        ]
+      },
+      "notes": "Warm oak cladding with visible grain."
+    },
+    {
+      "material_id": "mat.stone.limestone.white_linear.v1",
+      "legacy_ids": [
+        "mat_stone"
+      ],
+      "family": "stone",
+      "type": "limestone",
+      "finish": "white_linear",
+      "default_color_id": "col.ral.1013.v1",
+      "allowed_finish_ids": [
+        "finish.clean",
+        "finish.weathered",
+        "finish.wet"
+      ],
+      "pbr_range": {
+        "roughness": [
+          0.55,
+          0.85
+        ],
+        "metalness": [
+          0.0,
+          0.0
+        ],
+        "ior": [
+          1.5,
+          1.6
+        ]
+      },
+      "notes": "White limestone with linear grooves."
+    },
+    {
+      "material_id": "mat.brick.terracotta.exposed.v1",
+      "legacy_ids": [
+        "mat_brick"
+      ],
+      "family": "brick",
+      "type": "terracotta",
+      "finish": "exposed",
+      "default_color_id": "col.ral.3016.v1",
+      "allowed_finish_ids": [
+        "finish.clean",
+        "finish.weathered",
+        "finish.wet"
+      ],
+      "pbr_range": {
+        "roughness": [
+          0.65,
+          0.9
+        ],
+        "metalness": [
+          0.0,
+          0.0
+        ],
+        "ior": [
+          1.5,
+          1.6
+        ]
+      },
+      "notes": "Exposed red brick with warm terracotta tones."
+    },
+    {
+      "material_id": "mat.metal.corrugated.white_ribbed.v1",
+      "legacy_ids": [
+        "mat_corrugated"
+      ],
+      "family": "metal",
+      "type": "corrugated",
+      "finish": "white_ribbed",
+      "default_color_id": "col.ral.9016.v1",
+      "allowed_finish_ids": [
+        "finish.clean",
+        "finish.weathered",
+        "finish.wet"
+      ],
+      "pbr_range": {
+        "roughness": [
+          0.25,
+          0.5
+        ],
+        "metalness": [
+          0.85,
+          1.0
+        ],
+        "ior": [
+          1.35,
+          1.5
+        ]
+      },
+      "notes": "White corrugated metal roofing/facade sheet."
+    }
+  ]
+}

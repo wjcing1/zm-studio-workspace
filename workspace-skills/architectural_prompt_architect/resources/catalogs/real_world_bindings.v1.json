@@ -1,0 +1,106 @@
+{
+  "catalog_version": "real_world_bindings.v1",
+  "generated_at": "2026-02-18",
+  "notes": "Spec-level real-world mapping for procurement-ready material intent. Add manufacturer/sku after project localization.",
+  "bindings": [
+    {
+      "material_id": "mat.concrete.fair_faced.white_matte.v1",
+      "binding_type": "spec_reference",
+      "classification_system": "MasterFormat",
+      "classification_code": "03 30 00",
+      "search_key": "white fair-faced architectural concrete",
+      "manufacturer": null,
+      "collection": null,
+      "sku": null,
+      "binding_status": "pending_manufacturer_selection"
+    },
+    {
+      "material_id": "mat.concrete.board_formed.raw_gray.v1",
+      "binding_type": "spec_reference",
+      "classification_system": "MasterFormat",
+      "classification_code": "03 30 00",
+      "search_key": "board-formed concrete wall",
+      "manufacturer": null,
+      "collection": null,
+      "sku": null,
+      "binding_status": "pending_manufacturer_selection"
+    },
+    {
+      "material_id": "mat.glass.curtain_wall.clear_reflective.v1",
+      "binding_type": "spec_reference",
+      "classification_system": "MasterFormat",
+      "classification_code": "08 44 13",
+      "search_key": "reflective insulated glass curtain wall",
+      "manufacturer": null,
+      "collection": null,
+      "sku": null,
+      "binding_status": "pending_manufacturer_selection"
+    },
+    {
+      "material_id": "mat.metal.aluminum.powder_coated_white.v1",
+      "binding_type": "spec_reference",
+      "classification_system": "MasterFormat",
+      "classification_code": "07 42 13",
+      "search_key": "powder-coated aluminum metal wall panels",
+      "manufacturer": null,
+      "collection": null,
+      "sku": null,
+      "binding_status": "pending_manufacturer_selection"
+    },
+    {
+      "material_id": "mat.metal.stainless.polished.v1",
+      "binding_type": "spec_reference",
+      "classification_system": "MasterFormat",
+      "classification_code": "05 50 00",
+      "search_key": "architectural polished stainless steel cladding",
+      "manufacturer": null,
+      "collection": null,
+      "sku": null,
+      "binding_status": "pending_manufacturer_selection"
+    },
+    {
+      "material_id": "mat.wood.oak.warm_cladding.v1",
+      "binding_type": "spec_reference",
+      "classification_system": "MasterFormat",
+      "classification_code": "06 42 13",
+      "search_key": "oak architectural wood paneling exterior grade",
+      "manufacturer": null,
+      "collection": null,
+      "sku": null,
+      "binding_status": "pending_manufacturer_selection"
+    },
+    {
+      "material_id": "mat.stone.limestone.white_linear.v1",
+      "binding_type": "spec_reference",
+      "classification_system": "MasterFormat",
+      "classification_code": "04 42 00",
+      "search_key": "white limestone panel with linear groove finish",
+      "manufacturer": null,
+      "collection": null,
+      "sku": null,
+      "binding_status": "pending_manufacturer_selection"
+    },
+    {
+      "material_id": "mat.brick.terracotta.exposed.v1",
+      "binding_type": "spec_reference",
+      "classification_system": "MasterFormat",
+      "classification_code": "04 21 00",
+      "search_key": "exposed terracotta brick masonry unit",
+      "manufacturer": null,
+      "collection": null,
+      "sku": null,
+      "binding_status": "pending_manufacturer_selection"
+    },
+    {
+      "material_id": "mat.metal.corrugated.white_ribbed.v1",
+      "binding_type": "spec_reference",
+      "classification_system": "MasterFormat",
+      "classification_code": "07 41 13",
+      "search_key": "corrugated metal roof and wall panel white finish",
+      "manufacturer": null,
+      "collection": null,
+      "sku": null,
+      "binding_status": "pending_manufacturer_selection"
+    }
+  ]
+}

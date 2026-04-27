@@ -1,0 +1,50 @@
+{
+  "schema_version": "apr-json-1.2",
+  "status": "READY",
+  "request_id": "demo-20260218-001",
+  "mandatory_check": {
+    "pass": true,
+    "missing": [],
+    "sources": {
+      "lighting_source": "USER",
+      "core_material_source": "USER"
+    }
+  },
+  "gate_report": {
+    "narrative": {
+      "N0": 0,
+      "N1": 0,
+      "N2": 1,
+      "score": 95,
+      "decision": "pass"
+    },
+    "physics": {
+      "P0": 0,
+      "P1": 0,
+      "P2": 1,
+      "score": 95,
+      "decision": "pass"
+    }
+  },
+  "tokens": {
+    "materials": [
+      {
+        "material_id": "mat.concrete.board_formed.raw_gray.v1",
+        "semantic_material_name": "board-formed concrete",
+        "lookup_key": "board formed concrete raw",
+        "finish_hint": "raw_gray"
+      }
+    ]
+  },
+  "scene_assignments": [
+    {
+      "slot": "facade_primary",
+      "material_id": "mat.concrete.board_formed.raw_gray.v1"
+    }
+  ],
+  "prompt": {
+    "positive_en": "Architectural rendering, board-formed concrete facade, golden hour side lighting, subtle atmospheric haze, physically plausible shadows and reflections.",
+    "negative_en": "cartoon style, over-saturated colors, distorted geometry, impossible shadows"
+  },
+  "questions": []
+}

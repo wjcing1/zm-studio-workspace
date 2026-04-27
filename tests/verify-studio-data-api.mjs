@@ -32,7 +32,7 @@ async function main() {
     env: {
       ...process.env,
       PORT: String(PORT),
-      MINIMAX_API_KEY: "",
+      OPENAI_API_KEY: "",
       STUDIO_DB_PATH: DB_PATH,
     },
     stdio: ["ignore", "pipe", "pipe"],

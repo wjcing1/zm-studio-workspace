@@ -37,7 +37,7 @@ async function main() {
     env: {
       ...process.env,
       PORT: String(PORT),
-      MINIMAX_API_KEY: "",
+      OPENAI_API_KEY: "",
       COLLAB_MODE: "server",
       COLLAB_PROVIDER: "local-file",
       BOARD_STORE_DIR: STORE_DIR,

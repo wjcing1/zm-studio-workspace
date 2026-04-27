@@ -71,7 +71,7 @@ async function main() {
     env: {
       ...process.env,
       PORT: String(PORT),
-      MINIMAX_API_KEY: "",
+      OPENAI_API_KEY: "",
       STUDIO_DB_PATH: DB_PATH,
     },
     stdio: ["ignore", "pipe", "pipe"],
@@ -114,12 +114,12 @@ async function main() {
     });
 
     if (chatResponse.status !== 503) {
-      throw new Error(`/api/chat should return 503 without MINIMAX_API_KEY, got ${chatResponse.status}`);
+      throw new Error(`/api/chat should return 503 without OPENAI_API_KEY, got ${chatResponse.status}`);
     }
 
     const payload = await chatResponse.json();
-    if (!payload.error || !String(payload.error).includes("MINIMAX_API_KEY")) {
-      throw new Error("/api/chat missing-key response did not explain MINIMAX_API_KEY configuration");
+    if (!payload.error || !String(payload.error).includes("OPENAI_API_KEY")) {
+      throw new Error("/api/chat missing-key response did not explain OPENAI_API_KEY configuration");
     }
 
     const streamingServer = spawn("node", ["server.mjs"], {
@@ -127,7 +127,7 @@ async function main() {
       env: {
         ...process.env,
         PORT: String(PORT + 1),
-        MINIMAX_API_KEY: "",
+        OPENAI_API_KEY: "",
         STUDIO_DB_PATH: `${DB_PATH}.stream.sqlite`,
         CHAT_STREAM_TEST_MODE: "1",
         CHAT_STREAM_TEST_TEXT: STREAM_TEST_TEXT,

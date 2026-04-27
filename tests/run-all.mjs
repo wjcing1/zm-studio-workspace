@@ -107,7 +107,7 @@ async function main() {
         env: {
           ...process.env,
           PORT: "4173",
-          MINIMAX_API_KEY: "",
+          OPENAI_API_KEY: "",
         },
         stdio: "ignore",
       });

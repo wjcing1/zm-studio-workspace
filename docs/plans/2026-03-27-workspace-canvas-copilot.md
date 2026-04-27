@@ -6,7 +6,7 @@
 
 **Architecture:** Keep the existing `workspace.html` shell and visual style, but refactor board handling around a richer node/edge model, add client-side interaction state for selection and editing, and introduce a dedicated server endpoint that returns structured canvas operations. The client remains the source of truth for rendering, history, and persistence; the server only produces validated AI suggestions and operations.
 
-**Tech Stack:** Static HTML, vanilla JavaScript modules, CSS, Node HTTP server, OpenAI-compatible MiniMax API, Node-based verification scripts
+**Tech Stack:** Static HTML, vanilla JavaScript modules, CSS, Node HTTP server, OpenAI-compatible OpenAI API, Node-based verification scripts
 
 ---
 
@@ -76,8 +76,8 @@ Expected: FAIL with missing workspace copilot marker messages.
 **Step 1: Write the failing test**
 
 Create an API contract test that expects:
-- `POST /api/workspace-assistant` to return `503` without `MINIMAX_API_KEY`
-- the error payload to mention `MINIMAX_API_KEY`
+- `POST /api/workspace-assistant` to return `503` without `OPENAI_API_KEY`
+- the error payload to mention `OPENAI_API_KEY`
 
 **Step 2: Run test to verify it fails**
 

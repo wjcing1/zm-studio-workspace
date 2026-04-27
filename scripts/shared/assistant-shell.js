@@ -152,6 +152,10 @@ export async function consumeAssistantEventReader(reader, handlers = {}) {
           await handlers.onError?.(payload);
         } else if (payload?.type === "done") {
           await handlers.onDone?.(payload);
+        } else if (payload?.type === "tool_call_start") {
+          await handlers.onToolCallStart?.(payload);
+        } else if (payload?.type === "tool_call_end") {
+          await handlers.onToolCallEnd?.(payload);
         }
       }
 

@@ -88,7 +88,7 @@ The stream format should be intentionally small and easy to parse in the current
 
 ## Error Handling
 
-- Missing `MINIMAX_API_KEY` should continue to return a clear `503`.
+- Missing `OPENAI_API_KEY` should continue to return a clear `503`.
 - Stream readers must handle:
   - network interruption
   - upstream AI failure

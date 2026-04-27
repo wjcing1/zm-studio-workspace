@@ -6,7 +6,7 @@
 
 **Architecture:** The feature adds a new local-file memory store plus a workspace-memory helper module. The workspace assistant request includes `projectId`, the server retrieves matching memories before the model call, and the server extracts/upserts durable memories after the response without changing the existing reply/operations contract.
 
-**Tech Stack:** Node.js ESM, local JSON persistence, existing MiniMax/OpenAI-compatible chat flow, existing regression-test style scripts.
+**Tech Stack:** Node.js ESM, local JSON persistence, existing OpenAI/OpenAI-compatible chat flow, existing regression-test style scripts.
 
 ---
 

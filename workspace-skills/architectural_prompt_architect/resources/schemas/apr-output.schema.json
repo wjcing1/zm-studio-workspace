@@ -1,0 +1,344 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://architectural-prompting.local/schemas/apr-output.schema.json",
+  "title": "Architectural Prompt JSON Output Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "request_id",
+    "mandatory_check",
+    "gate_report",
+    "tokens",
+    "scene_assignments",
+    "prompt",
+    "questions"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "apr-json-1.2"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ASK_USER",
+        "READY",
+        "REVISE",
+        "BLOCK"
+      ]
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "mandatory_check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pass",
+        "missing",
+        "sources"
+      ],
+      "properties": {
+        "pass": {
+          "type": "boolean"
+        },
+        "missing": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "lighting_atmosphere",
+              "core_material"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "sources": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "lighting_source",
+            "core_material_source"
+          ],
+          "properties": {
+            "lighting_source": {
+              "type": "string",
+              "enum": [
+                "USER",
+                "INFERRED",
+                "MISSING"
+              ]
+            },
+            "core_material_source": {
+              "type": "string",
+              "enum": [
+                "USER",
+                "INFERRED",
+                "MISSING"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "gate_report": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "narrative",
+        "physics"
+      ],
+      "properties": {
+        "narrative": {
+          "$ref": "#/$defs/narrativeGateScore"
+        },
+        "physics": {
+          "$ref": "#/$defs/physicsGateScore"
+        }
+      }
+    },
+    "tokens": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "materials"
+      ],
+      "properties": {
+        "materials": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/materialToken"
+          }
+        }
+      }
+    },
+    "scene_assignments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "slot",
+          "material_id"
+        ],
+        "properties": {
+          "slot": {
+            "type": "string",
+            "minLength": 1
+          },
+          "material_id": {
+            "type": "string",
+            "pattern": "^mat\\.[a-z0-9_]+\\.[a-z0-9_]+\\.[a-z0-9_]+\\.v[0-9]+$"
+          }
+        }
+      }
+    },
+    "prompt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "positive_en",
+        "negative_en"
+      ],
+      "properties": {
+        "positive_en": {
+          "type": "string"
+        },
+        "negative_en": {
+          "type": "string"
+        }
+      }
+    },
+    "questions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "question_id",
+          "text"
+        ],
+        "properties": {
+          "question_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "narrativeGateScore": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "N0",
+        "N1",
+        "N2",
+        "score",
+        "decision"
+      ],
+      "properties": {
+        "N0": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "N1": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "N2": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "revise",
+            "block"
+          ]
+        }
+      }
+    },
+    "physicsGateScore": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "P0",
+        "P1",
+        "P2",
+        "score",
+        "decision"
+      ],
+      "properties": {
+        "P0": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "P1": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "P2": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "revise",
+            "block"
+          ]
+        }
+      }
+    },
+    "materialToken": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "material_id"
+      ],
+      "properties": {
+        "material_id": {
+          "type": "string",
+          "pattern": "^mat\\.[a-z0-9_]+\\.[a-z0-9_]+\\.[a-z0-9_]+\\.v[0-9]+$"
+        },
+        "semantic_material_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lookup_key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "finish_hint": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "ASK_USER"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "mandatory_check": {
+            "properties": {
+              "pass": {
+                "const": false
+              }
+            }
+          },
+          "questions": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "READY"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "mandatory_check": {
+            "properties": {
+              "pass": {
+                "const": true
+              }
+            }
+          },
+          "questions": {
+            "maxItems": 0
+          },
+          "tokens": {
+            "properties": {
+              "materials": {
+                "minItems": 1
+              }
+            }
+          },
+          "scene_assignments": {
+            "minItems": 1
+          }
+        }
+      }
+    }
+  ]
+}

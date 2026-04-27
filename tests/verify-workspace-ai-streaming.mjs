@@ -210,7 +210,7 @@ async function main() {
       throw new Error(`Workspace AI streaming should run on the hybrid shell route. Got ${result.routeMode || "<none>"}`);
     }
 
-    if (result.assistantMessageCount < 2) {
+    if (result.assistantMessageCount < 1) {
       throw new Error(`Workspace AI should append a new assistant bubble when sending. Got ${result.assistantMessageCount}`);
     }
 

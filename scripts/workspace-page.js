@@ -155,9 +155,9 @@ const WORKSPACE_STATIC_AI_RECOVERY =
   "Workspace AI requires a server backend. GitHub Pages serves the static canvas only. Deploy `/api/workspace-assistant` on a Node-capable host to enable it.";
 
 const WORKSPACE_BASE_STARTERS = [
-  "Summarize the selected or nearby cards and add three follow-up notes.",
-  "Group the selected cards into one cluster and label it clearly.",
-  "Turn the nearby ideas into a simple flow with connecting edges.",
+  "总结选中或附近的卡片，再补三条跟进笔记。",
+  "把选中的卡片归到同一组，并起个清晰的标签。",
+  "把附近的想法整理成一个带连线的简单流程。",
 ];
 
 function getWorkspaceAssistantStarters() {
@@ -228,19 +228,16 @@ const state = {
     points: {},
   },
   assistant: {
-    messages: [
-      {
-        role: "assistant",
-        content:
-          "Select one or more nodes (or press Space) to focus me on them. I always understand the full canvas — including any image cards.",
-      },
-    ],
+    messages: [],
     input: "",
     sending: false,
     error: "",
     backendReady: false,
     showStarters: true,
     contextNodeIds: [],
+    conversationId: null,
+    conversations: [],
+    isHistoryOpen: false,
   },
 };
 
@@ -352,6 +349,12 @@ const leftbarCollapseBtn = document.getElementById("leftbarCollapseBtn");
 const leftbarExpandBtn = document.getElementById("leftbarExpandBtn");
 const rightbarExpandBtn = document.getElementById("rightbarExpandBtn");
 const leftbarSkillList = document.getElementById("leftbarSkillList");
+const assistantNewChatBtn = document.getElementById("assistantNewChatBtn");
+const assistantHistoryBtn = document.getElementById("assistantHistoryBtn");
+const assistantHistoryPanel = document.getElementById("assistantHistoryPanel");
+const assistantHistoryList = document.getElementById("assistantHistoryList");
+const assistantHistoryCloseBtn = document.getElementById("assistantHistoryCloseBtn");
+const workspaceAssistantSheet = document.querySelector(".workspace-assistant-sheet");
 const workspaceAssistantBody = document.getElementById("workspaceAssistantBody");
 const assistantContextSummary = document.getElementById("assistantContextSummary");
 const assistantStartersRegion = document.getElementById("assistantStartersRegion");
@@ -1503,9 +1506,7 @@ function renderAssistantThread() {
   } else if (state.assistant.error) {
     assistantStatus.textContent = state.assistant.error;
   } else if (state.assistant.backendReady) {
-    assistantStatus.textContent = Array.isArray(studioData?.assistant?.skills) && studioData.assistant.skills.length > 0
-      ? "Workspace AI backend connected. Type @architectural_prompt_architect to use the architectural prompt skill."
-      : "Workspace AI backend connected.";
+    assistantStatus.textContent = "";
   } else {
     assistantStatus.textContent = WORKSPACE_STATIC_AI_HINT;
   }
@@ -1619,6 +1620,10 @@ function setRightbarCollapsed(collapsed, options = {}) {
     return;
   }
   state.ui.isRightbarCollapsed = collapsed;
+  if (collapsed && state.assistant.isHistoryOpen) {
+    state.assistant.isHistoryOpen = false;
+    renderAssistantHistoryPanel();
+  }
   persistSidebarState();
   applySidebarLayout();
 
@@ -1642,11 +1647,9 @@ function renderLeftbarSkills() {
     .map((skill) => {
       const id = escapeHtml(skill.id || "");
       const name = escapeHtml(skill.name || skill.id || "Skill");
-      const description = escapeHtml(skill.description || "");
       return `
         <button class="leftbar-skill" type="button" data-skill-mention="${id}" title="Insert @${id} mention">
           <span class="leftbar-skill-name">${name}</span>
-          ${description ? `<p class="leftbar-skill-desc">${description}</p>` : ""}
         </button>
       `;
     })
@@ -1671,6 +1674,277 @@ leftbarSkillList?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-skill-mention]");
   if (!button) return;
   insertSkillMention(button.dataset.skillMention);
+});
+
+const ASSISTANT_CONVERSATIONS_STORAGE_KEY = "zm-workspace-conversations-v1";
+const ASSISTANT_MAX_CONVERSATIONS = 60;
+
+function generateConversationId() {
+  return `conv_${Date.now().toString(36)}_${Math.floor(Math.random() * 1e6).toString(36)}`;
+}
+
+function loadConversationsFromStorage() {
+  try {
+    const raw = window.localStorage.getItem(ASSISTANT_CONVERSATIONS_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed?.conversations)) return;
+    state.assistant.conversations = parsed.conversations
+      .filter((conv) => conv && typeof conv.id === "string" && Array.isArray(conv.messages))
+      .map((conv) => ({
+        id: conv.id,
+        title: typeof conv.title === "string" ? conv.title : "",
+        createdAt: Number(conv.createdAt) || Date.now(),
+        updatedAt: Number(conv.updatedAt) || Number(conv.createdAt) || Date.now(),
+        messages: conv.messages
+          .filter((message) => message && typeof message.content === "string" && !message.pending)
+          .map((message) => ({
+            role: message.role === "assistant" ? "assistant" : "user",
+            content: message.content,
+          })),
+      }))
+      .filter((conv) => conv.messages.length > 0);
+  } catch {}
+}
+
+function persistConversations() {
+  try {
+    const trimmed = state.assistant.conversations
+      .slice()
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, ASSISTANT_MAX_CONVERSATIONS);
+    state.assistant.conversations = trimmed;
+    window.localStorage.setItem(
+      ASSISTANT_CONVERSATIONS_STORAGE_KEY,
+      JSON.stringify({ conversations: trimmed }),
+    );
+  } catch {}
+}
+
+function deriveConversationTitle(messages) {
+  const firstUser = messages.find((message) => message.role === "user" && message.content);
+  const source = firstUser ? firstUser.content : messages[0]?.content || "";
+  const flattened = String(source).replace(/\s+/g, " ").trim();
+  if (!flattened) return "新对话";
+  return flattened.length > 40 ? `${flattened.slice(0, 40)}…` : flattened;
+}
+
+function persistCurrentConversation() {
+  const persistableMessages = state.assistant.messages
+    .filter((message) => !message.pending && typeof message.content === "string")
+    .map((message) => ({
+      role: message.role === "assistant" ? "assistant" : "user",
+      content: message.content,
+    }));
+
+  if (persistableMessages.length === 0) {
+    return;
+  }
+
+  if (!state.assistant.conversationId) {
+    state.assistant.conversationId = generateConversationId();
+  }
+
+  const id = state.assistant.conversationId;
+  const now = Date.now();
+  const existingIndex = state.assistant.conversations.findIndex((conv) => conv.id === id);
+  const createdAt = existingIndex === -1 ? now : state.assistant.conversations[existingIndex].createdAt;
+  const title = deriveConversationTitle(persistableMessages);
+
+  const record = {
+    id,
+    title,
+    createdAt,
+    updatedAt: now,
+    messages: persistableMessages,
+  };
+
+  if (existingIndex === -1) {
+    state.assistant.conversations.unshift(record);
+  } else {
+    state.assistant.conversations[existingIndex] = record;
+  }
+
+  persistConversations();
+  if (state.assistant.isHistoryOpen) {
+    renderAssistantHistory();
+  }
+}
+
+function startNewConversation({ focusInput = true } = {}) {
+  // Make sure whatever is on screen is checkpointed before we walk away.
+  persistCurrentConversation();
+  state.assistant.conversationId = null;
+  state.assistant.messages = [];
+  state.assistant.input = "";
+  state.assistant.error = "";
+  state.assistant.showStarters = true;
+  state.assistant.contextNodeIds = [];
+  state.assistant.isHistoryOpen = false;
+  if (assistantInput) {
+    assistantInput.value = "";
+  }
+  renderAssistantThread();
+  renderAssistantContext();
+  renderAssistantHistoryPanel();
+  if (focusInput) {
+    setRightbarCollapsed(false, { focusInput: true });
+  }
+}
+
+function loadConversation(id) {
+  const record = state.assistant.conversations.find((conv) => conv.id === id);
+  if (!record) return;
+  // Checkpoint the current thread before swapping it out.
+  persistCurrentConversation();
+  state.assistant.conversationId = record.id;
+  state.assistant.messages = record.messages.map((message) => ({
+    role: message.role,
+    content: message.content,
+  }));
+  state.assistant.input = "";
+  state.assistant.error = "";
+  state.assistant.showStarters = state.assistant.messages.length === 0;
+  state.assistant.contextNodeIds = [];
+  state.assistant.isHistoryOpen = false;
+  if (assistantInput) {
+    assistantInput.value = "";
+  }
+  renderAssistantThread();
+  renderAssistantContext();
+  renderAssistantHistoryPanel();
+  setRightbarCollapsed(false, { focusInput: false });
+}
+
+function deleteConversation(id) {
+  const index = state.assistant.conversations.findIndex((conv) => conv.id === id);
+  if (index === -1) return;
+  state.assistant.conversations.splice(index, 1);
+  persistConversations();
+  if (state.assistant.conversationId === id) {
+    state.assistant.conversationId = null;
+    state.assistant.messages = [];
+    state.assistant.showStarters = true;
+    renderAssistantThread();
+    renderAssistantContext();
+  }
+  renderAssistantHistory();
+}
+
+function formatRelativeTime(timestamp) {
+  const delta = Math.max(0, Date.now() - Number(timestamp || 0));
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+  if (delta < minute) return "刚刚";
+  if (delta < hour) return `${Math.floor(delta / minute)} 分钟前`;
+  if (delta < day) return `${Math.floor(delta / hour)} 小时前`;
+  if (delta < 7 * day) return `${Math.floor(delta / day)} 天前`;
+  const date = new Date(Number(timestamp));
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day2 = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day2}`;
+}
+
+function renderAssistantHistory() {
+  if (!assistantHistoryList) return;
+  const items = state.assistant.conversations
+    .slice()
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+
+  if (items.length === 0) {
+    assistantHistoryList.dataset.empty = "true";
+    assistantHistoryList.innerHTML = `<span>还没有历史对话。</span>`;
+    return;
+  }
+
+  assistantHistoryList.dataset.empty = "false";
+  const currentId = state.assistant.conversationId;
+  assistantHistoryList.innerHTML = items
+    .map((conv) => {
+      const id = escapeHtml(conv.id);
+      const title = escapeHtml(conv.title || "新对话");
+      const meta = escapeHtml(formatRelativeTime(conv.updatedAt));
+      const isCurrent = conv.id === currentId;
+      return `
+        <div class="assistant-history-item ${isCurrent ? "is-current" : ""}" data-conversation-id="${id}" tabindex="0" role="button">
+          <div class="assistant-history-item-main">
+            <div class="assistant-history-item-title">${title}</div>
+            <div class="assistant-history-item-meta">${meta}</div>
+          </div>
+          <button
+            class="assistant-history-item-delete"
+            type="button"
+            data-conversation-delete="${id}"
+            aria-label="Delete conversation"
+            title="Delete"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 6h18"></path>
+              <path d="M8 6V4h8v2"></path>
+              <path d="M6 6v14h12V6"></path>
+            </svg>
+          </button>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function renderAssistantHistoryPanel() {
+  const open = state.assistant.isHistoryOpen;
+  if (workspaceAssistantSheet) {
+    workspaceAssistantSheet.dataset.historyOpen = open ? "true" : "false";
+  }
+  if (assistantHistoryPanel) {
+    assistantHistoryPanel.hidden = !open;
+  }
+  if (assistantHistoryBtn) {
+    assistantHistoryBtn.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+  if (open) {
+    renderAssistantHistory();
+  }
+}
+
+function setHistoryPanelOpen(open) {
+  state.assistant.isHistoryOpen = Boolean(open);
+  renderAssistantHistoryPanel();
+}
+
+assistantNewChatBtn?.addEventListener("click", () => {
+  startNewConversation();
+});
+
+assistantHistoryBtn?.addEventListener("click", () => {
+  setHistoryPanelOpen(!state.assistant.isHistoryOpen);
+});
+
+assistantHistoryCloseBtn?.addEventListener("click", () => {
+  setHistoryPanelOpen(false);
+});
+
+assistantHistoryList?.addEventListener("click", (event) => {
+  const deleteBtn = event.target.closest("[data-conversation-delete]");
+  if (deleteBtn) {
+    event.stopPropagation();
+    deleteConversation(deleteBtn.dataset.conversationDelete);
+    return;
+  }
+  const item = event.target.closest("[data-conversation-id]");
+  if (!item) return;
+  loadConversation(item.dataset.conversationId);
+});
+
+assistantHistoryList?.addEventListener("keydown", (event) => {
+  const item = event.target.closest("[data-conversation-id]");
+  if (!item) return;
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    loadConversation(item.dataset.conversationId);
+  }
 });
 
 function openOverviewCanvas() {
@@ -2635,6 +2909,7 @@ async function sendAssistantMessage(rawText) {
     }
   } finally {
     state.assistant.sending = false;
+    persistCurrentConversation();
     renderAssistantThread();
     renderAssistantContext();
   }
@@ -3998,6 +4273,8 @@ mountWorkspaceEngine().catch((error) => {
 loadSidebarStateFromStorage();
 applySidebarLayout();
 renderLeftbarSkills();
+loadConversationsFromStorage();
+renderAssistantHistoryPanel();
 applyInitialRoute();
 applyWorkspaceModeMarkers();
 syncRoute();

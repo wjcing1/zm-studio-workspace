@@ -14,8 +14,8 @@ async function main() {
 
   const checks = [
     {
-      ok: source.includes('id="canvasToolbar"'),
-      message: "Workspace should expose a floating canvas toolbar for richer editing actions.",
+      ok: !source.includes('id="canvasToolbar"'),
+      message: "Workspace should no longer ship a duplicate floating toolbar (tldraw provides node-creation tools).",
     },
     {
       ok: source.includes('id="marqueeSelection"'),

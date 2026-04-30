@@ -915,6 +915,7 @@ function buildWorkspaceAssistantPrompt(
     "",
     "When you are ready to give the FINAL answer to the user (no more tool calls needed), return JSON only with this shape:",
     '{"reply":"short helpful response","operations":[{"type":"addNode","node":{}},{"type":"updateNode","id":"node-id","patch":{}},{"type":"removeNode","id":"node-id"},{"type":"addEdge","edge":{}},{"type":"removeEdge","id":"edge-id"},{"type":"generateImage","prompt":"...","x":0,"y":0,"w":360,"h":280,"title":"optional"}]}',
+    "ALWAYS write a non-empty `reply` string addressed to the user, even when you also include canvas operations. The reply should briefly explain what you did or answer the user's question in their language. Never leave `reply` empty — the user reads it as your message in the chat.",
     "Allowed node types: text, link, group, image, project, file.",
     "For addNode include id, type, x, y, w, h and any relevant content fields.",
     "For addEdge include id, from, to, fromSide, toSide, and optional label.",
@@ -1379,9 +1380,16 @@ async function handleWorkspaceAssistant(request, response) {
 
     try {
       const payload = extractJsonObject(finalAssistantText);
-      reply = typeof payload.reply === "string" && payload.reply.trim() ? payload.reply.trim() : finalAssistantText;
+      reply = typeof payload.reply === "string" ? payload.reply.trim() : "";
       operations = normalizeWorkspaceOperations(payload.operations);
     } catch {}
+
+    if (!reply) {
+      reply =
+        operations.length > 0
+          ? `已根据你的请求更新画布（${operations.length} 项变更）。`
+          : "好的。";
+    }
 
     const expansion = await expandGenerateImageOperations(operations, {
       boardKey: workspaceContext?.board?.key,

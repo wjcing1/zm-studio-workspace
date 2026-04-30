@@ -22,6 +22,18 @@ export function replacePendingAssistantMessage(messages, content) {
   };
 }
 
+export function setPendingAssistantContent(messages, content) {
+  const pendingIndex = getPendingAssistantIndex(messages);
+  if (pendingIndex === -1) return;
+
+  messages[pendingIndex] = {
+    ...messages[pendingIndex],
+    content,
+    pending: true,
+    streaming: true,
+  };
+}
+
 export function appendPendingAssistantMessage(messages, delta) {
   const pendingIndex = getPendingAssistantIndex(messages);
   if (pendingIndex === -1 || !delta) return;

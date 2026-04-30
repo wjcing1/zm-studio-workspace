@@ -46,8 +46,8 @@ import {
   focusAssistantInput,
   getPendingAssistantIndex,
   renderAssistantMessages,
-  renderAssistantStarters,
   replacePendingAssistantMessage,
+  setPendingAssistantContent,
   serializeAssistantMessages,
   shouldOpenAssistantFromSpace,
 } from "./shared/assistant-shell.js";
@@ -154,26 +154,6 @@ const WORKSPACE_STATIC_AI_HINT =
 const WORKSPACE_STATIC_AI_RECOVERY =
   "Workspace AI requires a server backend. GitHub Pages serves the static canvas only. Deploy `/api/workspace-assistant` on a Node-capable host to enable it.";
 
-const WORKSPACE_BASE_STARTERS = [
-  "总结选中或附近的卡片，再补三条跟进笔记。",
-  "把选中的卡片归到同一组，并起个清晰的标签。",
-  "把附近的想法整理成一个带连线的简单流程。",
-];
-
-function getWorkspaceAssistantStarters() {
-  const starters = [...WORKSPACE_BASE_STARTERS];
-  const skills = Array.isArray(studioData?.assistant?.skills) ? studioData.assistant.skills : [];
-  const architecturalSkill = skills.find((skill) => skill.id === "architectural_prompt_architect");
-
-  if (architecturalSkill) {
-    starters.unshift(
-      "Use @architectural_prompt_architect to turn the selected references into an architectural prompt card.",
-    );
-  }
-
-  return starters;
-}
-
 const state = {
   boards: createBoardRegistry(),
   collaboration: {
@@ -233,7 +213,6 @@ const state = {
     sending: false,
     error: "",
     backendReady: false,
-    showStarters: true,
     contextNodeIds: [],
     conversationId: null,
     conversations: [],
@@ -357,8 +336,6 @@ const assistantHistoryCloseBtn = document.getElementById("assistantHistoryCloseB
 const workspaceAssistantSheet = document.querySelector(".workspace-assistant-sheet");
 const workspaceAssistantBody = document.getElementById("workspaceAssistantBody");
 const assistantContextSummary = document.getElementById("assistantContextSummary");
-const assistantStartersRegion = document.getElementById("assistantStartersRegion");
-const assistantStarters = document.getElementById("assistantStarters");
 const assistantTimeline = document.getElementById("assistantTimeline");
 const assistantMessages = document.getElementById("assistantMessages");
 const assistantStatus = document.getElementById("assistantStatus");
@@ -1492,9 +1469,10 @@ function renderAssistantContext() {
 
 function renderAssistantThread() {
   assistantTimeline?.setAttribute("aria-busy", state.assistant.sending ? "true" : "false");
-  assistantStartersRegion.dataset.state = state.assistant.showStarters ? "visible" : "hidden";
-  assistantStartersRegion.hidden = !state.assistant.showStarters;
-  assistantStarters.innerHTML = renderAssistantStarters(getWorkspaceAssistantStarters(), escapeHtml);
+  workspaceAssistantBody?.setAttribute(
+    "data-empty",
+    state.assistant.messages.length === 0 ? "true" : "false",
+  );
   assistantMessages.innerHTML = renderAssistantMessages(state.assistant.messages, { nl2br });
 
   assistantInput.value = state.assistant.input;
@@ -1778,7 +1756,6 @@ function startNewConversation({ focusInput = true } = {}) {
   state.assistant.messages = [];
   state.assistant.input = "";
   state.assistant.error = "";
-  state.assistant.showStarters = true;
   state.assistant.contextNodeIds = [];
   state.assistant.isHistoryOpen = false;
   if (assistantInput) {
@@ -1804,7 +1781,6 @@ function loadConversation(id) {
   }));
   state.assistant.input = "";
   state.assistant.error = "";
-  state.assistant.showStarters = state.assistant.messages.length === 0;
   state.assistant.contextNodeIds = [];
   state.assistant.isHistoryOpen = false;
   if (assistantInput) {
@@ -1824,7 +1800,6 @@ function deleteConversation(id) {
   if (state.assistant.conversationId === id) {
     state.assistant.conversationId = null;
     state.assistant.messages = [];
-    state.assistant.showStarters = true;
     renderAssistantThread();
     renderAssistantContext();
   }
@@ -2813,7 +2788,6 @@ async function sendAssistantMessage(rawText) {
   state.assistant.input = "";
   state.assistant.error = "";
   state.assistant.sending = true;
-  state.assistant.showStarters = false;
   renderAssistantThread();
   renderAssistantContext();
 
@@ -2846,7 +2820,7 @@ async function sendAssistantMessage(rawText) {
       const renderToolStatus = () => {
         if (firstChunkSeen) return;
         const lines = Array.from(toolStatusLines.values());
-        replacePendingAssistantMessage(state.assistant.messages, lines.join("\n"));
+        setPendingAssistantContent(state.assistant.messages, lines.join("\n"));
         renderAssistantThread();
       };
 
@@ -2854,7 +2828,7 @@ async function sendAssistantMessage(rawText) {
         onChunk(payload) {
           if (!firstChunkSeen) {
             firstChunkSeen = true;
-            replacePendingAssistantMessage(state.assistant.messages, "");
+            setPendingAssistantContent(state.assistant.messages, "");
           }
           appendPendingAssistantMessage(state.assistant.messages, payload.delta);
           state.assistant.backendReady = true;
@@ -3228,12 +3202,6 @@ canvasFileInput?.addEventListener("change", async (event) => {
 
 canvasExportBtn?.addEventListener("click", () => {
   triggerExport();
-});
-
-assistantStarters?.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-starter-prompt]");
-  if (!button) return;
-  void sendAssistantMessage(button.dataset.starterPrompt || "");
 });
 
 assistantInput?.addEventListener("input", (event) => {

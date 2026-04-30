@@ -125,13 +125,13 @@ async function main() {
               const panel = document.getElementById("workspaceAssistantPanel");
               const input = document.getElementById("assistantInput");
               const form = document.getElementById("assistantComposer");
-              const startersRegion = document.getElementById("assistantStartersRegion");
+              const body = document.getElementById("workspaceAssistantBody");
               const messages = document.getElementById("assistantMessages");
               const scene =
                 document.querySelector(".workspace-canvas-app .tl-canvas") ||
                 document.querySelector(".workspace-canvas-app .tl-container");
 
-              if (!panel || !input || !form || !startersRegion || !messages || !scene) {
+              if (!panel || !input || !form || !body || !messages || !scene) {
                 return {
                   missing: true,
                   pathname: window.location.pathname,
@@ -148,12 +148,12 @@ async function main() {
               await wait(140);
               const firstAssistantBody = messages.querySelector(".assistant-message.is-assistant:last-child .assistant-message-body");
               const firstSnapshot = firstAssistantBody?.textContent?.trim() || "";
-              const firstStartersState = startersRegion?.dataset?.state || "";
+              const firstBodyEmpty = body?.dataset?.empty || "";
 
               await wait(220);
               const secondAssistantBody = messages.querySelector(".assistant-message.is-assistant:last-child .assistant-message-body");
               const secondSnapshot = secondAssistantBody?.textContent?.trim() || "";
-              const secondStartersState = startersRegion?.dataset?.state || "";
+              const secondBodyEmpty = body?.dataset?.empty || "";
 
               let finalNodeCount = window.__workspaceBoardState?.nodes?.length || 0;
               let streamNode = [...document.querySelectorAll(".workspace-canvas-app [data-workspace-node-id]")].find((node) =>
@@ -175,8 +175,8 @@ async function main() {
                 secondSnapshot,
                 finalSnapshot:
                   messages.querySelector(".assistant-message.is-assistant:last-child .assistant-message-body")?.textContent?.trim() || "",
-                firstStartersState,
-                secondStartersState,
+                firstBodyEmpty,
+                secondBodyEmpty,
                 assistantMessageCount: messages.querySelectorAll(".assistant-message.is-assistant").length,
                 initialNodeCount,
                 finalNodeCount,
@@ -214,9 +214,9 @@ async function main() {
       throw new Error(`Workspace AI should append a new assistant bubble when sending. Got ${result.assistantMessageCount}`);
     }
 
-    if (result.firstStartersState !== "hidden" || result.secondStartersState !== "hidden") {
+    if (result.firstBodyEmpty !== "false" || result.secondBodyEmpty !== "false") {
       throw new Error(
-        `Workspace AI starter prompts should auto-hide after the first send. Got ${result.firstStartersState} -> ${result.secondStartersState}`,
+        `Workspace AI body should leave the empty state after the first send. Got ${result.firstBodyEmpty} -> ${result.secondBodyEmpty}`,
       );
     }
 
@@ -236,7 +236,7 @@ async function main() {
       );
     }
 
-    console.log("PASS: Workspace AI streams incremental output, hides starters, and applies final operations.");
+    console.log("PASS: Workspace AI streams incremental output, leaves the empty state, and applies final operations.");
   } finally {
     server.kill("SIGTERM");
     await wait(300);

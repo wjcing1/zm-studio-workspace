@@ -38,8 +38,10 @@ async function main() {
       message: "Workspace AI should expose dedicated sheet body and footer regions.",
     },
     {
-      ok: source.includes('id="assistantStartersRegion"'),
-      message: "Workspace AI should expose a dedicated starter-prompt region.",
+      ok:
+        !source.includes('id="assistantStartersRegion"') &&
+        !source.includes('class="assistant-starter"'),
+      message: "Workspace AI default page should not render starter-prompt suggestion cards.",
     },
     {
       ok: source.includes('id="assistantTimeline"') && (source.includes('role="log"') || source.includes('aria-live="polite"')),
@@ -98,8 +100,10 @@ async function main() {
       message: "Workspace AI should stream prompts through /api/workspace-assistant instead of waiting for one final payload.",
     },
     {
-      ok: scriptSource.includes("showStarters"),
-      message: "Workspace AI should track starter-prompt visibility in client state.",
+      ok:
+        !scriptSource.includes("showStarters") &&
+        !scriptSource.includes("WORKSPACE_BASE_STARTERS"),
+      message: "Workspace AI client should no longer carry starter-prompt state.",
     },
     {
       ok: scriptSource.includes("setRightbarCollapsed") && scriptSource.includes("setLeftbarCollapsed"),

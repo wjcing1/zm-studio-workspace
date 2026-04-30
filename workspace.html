@@ -250,19 +250,14 @@
             </div>
           </div>
 
-          <div class="workspace-assistant-body" id="workspaceAssistantBody">
+          <div class="workspace-assistant-body" id="workspaceAssistantBody" data-empty="true">
             <p class="workspace-assistant-context" id="assistantContextSummary">
               Select nodes on the canvas to focus the AI on them. The full canvas is always understood.
             </p>
 
-            <section
-              class="workspace-assistant-starters-region"
-              id="assistantStartersRegion"
-              data-state="visible"
-              aria-label="Workspace assistant starter prompts"
-            >
-              <div class="assistant-starters" id="assistantStarters"></div>
-            </section>
+            <div class="assistant-empty-greeting" id="assistantEmptyGreeting">
+              What do you want to build today?
+            </div>
 
             <div
               class="workspace-assistant-timeline"

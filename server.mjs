@@ -78,6 +78,8 @@ const MODEL = process.env.OPENAI_MODEL || "gpt-5.5";
 const IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || "gpt-image-2";
 const IMAGE_SIZE = process.env.OPENAI_IMAGE_SIZE || "1024x1024";
 const REASONING_EFFORT = process.env.OPENAI_REASONING_EFFORT || "xhigh";
+const CONTEXT_WINDOW = Number(process.env.OPENAI_CONTEXT_WINDOW || 1000000);
+const AUTO_COMPACT_LIMIT = Number(process.env.OPENAI_AUTO_COMPACT_LIMIT || 900000);
 const MAX_UPLOAD_BYTES = Number(process.env.UPLOAD_MAX_BYTES || 25 * 1024 * 1024);
 const CHAT_STREAM_TEST_MODE = process.env.CHAT_STREAM_TEST_MODE === "1";
 const CHAT_STREAM_TEST_TEXT =
@@ -1296,6 +1298,9 @@ async function handleWorkspaceAssistant(request, response) {
     let finalAssistantText = "";
     let iterationsRun = 0;
     const toolCallTrace = [];
+    const usageTotals = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+    let lastPromptTokens = 0;
+    let lastCompletionTokens = 0;
 
     for (let iteration = 0; iteration < AGENT_LOOP_MAX_ITERATIONS; iteration += 1) {
       iterationsRun = iteration + 1;
@@ -1310,6 +1315,17 @@ async function handleWorkspaceAssistant(request, response) {
           reasoning_effort: REASONING_EFFORT,
         },
       });
+
+      const usage = completion?.usage;
+      if (usage) {
+        const promptT = Number(usage.prompt_tokens) || 0;
+        const completionT = Number(usage.completion_tokens) || 0;
+        usageTotals.prompt_tokens += promptT;
+        usageTotals.completion_tokens += completionT;
+        usageTotals.total_tokens += Number(usage.total_tokens) || promptT + completionT;
+        lastPromptTokens = promptT;
+        lastCompletionTokens = completionT;
+      }
 
       const choice = completion?.choices?.[0];
       const message = choice?.message;
@@ -1422,12 +1438,25 @@ async function handleWorkspaceAssistant(request, response) {
       console.warn(error instanceof Error ? error.message : "Unable to persist workspace memory.");
     }
 
+    const usagePayload = {
+      prompt_tokens: lastPromptTokens,
+      completion_tokens: lastCompletionTokens,
+      turn_input_tokens: lastPromptTokens,
+      turn_output_tokens: lastCompletionTokens,
+      total_prompt_tokens: usageTotals.prompt_tokens,
+      total_completion_tokens: usageTotals.completion_tokens,
+      total_tokens: usageTotals.total_tokens,
+    };
+
     const responsePayload = {
       reply,
       operations,
       model: MODEL,
       iterations: iterationsRun,
       tool_calls: toolCallTrace,
+      usage: usagePayload,
+      context_window: CONTEXT_WINDOW,
+      auto_compact_limit: AUTO_COMPACT_LIMIT,
     };
 
     if (streamRequested) {
@@ -1442,6 +1471,9 @@ async function handleWorkspaceAssistant(request, response) {
         operations,
         iterations: iterationsRun,
         tool_calls: toolCallTrace,
+        usage: usagePayload,
+        context_window: CONTEXT_WINDOW,
+        auto_compact_limit: AUTO_COMPACT_LIMIT,
       });
       response.end();
       return;

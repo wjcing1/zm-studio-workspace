@@ -217,6 +217,12 @@ const state = {
     conversationId: null,
     conversations: [],
     isHistoryOpen: false,
+    usage: {
+      tokens: 0,
+      contextWindow: 1000000,
+      autoCompactLimit: 900000,
+      source: "estimate",
+    },
   },
 };
 
@@ -330,6 +336,10 @@ const rightbarExpandBtn = document.getElementById("rightbarExpandBtn");
 const leftbarSkillList = document.getElementById("leftbarSkillList");
 const assistantNewChatBtn = document.getElementById("assistantNewChatBtn");
 const assistantHistoryBtn = document.getElementById("assistantHistoryBtn");
+const assistantContextRing = document.getElementById("assistantContextRing");
+const assistantContextRingLabel = document.getElementById("assistantContextRingLabel");
+const assistantContextRingProgress = assistantContextRing?.querySelector(".context-ring-progress");
+const CONTEXT_RING_CIRCUMFERENCE = 2 * Math.PI * 9;
 const assistantHistoryPanel = document.getElementById("assistantHistoryPanel");
 const assistantHistoryList = document.getElementById("assistantHistoryList");
 const assistantHistoryCloseBtn = document.getElementById("assistantHistoryCloseBtn");
@@ -1467,6 +1477,69 @@ function renderAssistantContext() {
   }
 }
 
+function estimateConversationTokens() {
+  let chars = 0;
+  for (const message of state.assistant.messages) {
+    if (typeof message?.content === "string") {
+      chars += message.content.length;
+    }
+  }
+  return Math.ceil(chars / 4);
+}
+
+function formatTokenCount(n) {
+  if (!Number.isFinite(n) || n <= 0) return "0";
+  if (n >= 1000) {
+    return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k`;
+  }
+  return String(n);
+}
+
+function renderAssistantContextRing() {
+  if (!assistantContextRing || !assistantContextRingLabel) return;
+
+  const usage = state.assistant.usage || {
+    tokens: 0,
+    contextWindow: 1000000,
+    autoCompactLimit: 900000,
+    source: "estimate",
+  };
+  const serverTokens = Number(usage.tokens) || 0;
+  const estimateTokens = estimateConversationTokens();
+  const tokens = Math.max(serverTokens, estimateTokens);
+  const contextWindow = Number(usage.contextWindow) || 1000000;
+  const autoCompact = Number(usage.autoCompactLimit) || Math.round(contextWindow * 0.9);
+  const denom = autoCompact > 0 ? autoCompact : contextWindow;
+  const ratio = denom > 0 ? Math.min(1, Math.max(0, tokens / denom)) : 0;
+  const pct = Math.round(ratio * 100);
+
+  assistantContextRing.dataset.pct = String(pct);
+  assistantContextRing.dataset.source = usage.source || "estimate";
+  if (pct >= 85) {
+    assistantContextRing.dataset.pctBucket = "danger";
+  } else if (pct >= 65) {
+    assistantContextRing.dataset.pctBucket = "warn";
+  } else {
+    assistantContextRing.dataset.pctBucket = "ok";
+  }
+
+  if (assistantContextRingProgress) {
+    assistantContextRingProgress.style.strokeDashoffset = String(
+      CONTEXT_RING_CIRCUMFERENCE * (1 - ratio),
+    );
+  }
+
+  assistantContextRingLabel.textContent = `${pct}%`;
+  const sourceLabel = usage.source === "server" ? "实测" : "估算";
+  assistantContextRing.title =
+    `已用 ${formatTokenCount(tokens)} / ${formatTokenCount(autoCompact)} tokens (${pct}% — ${sourceLabel})\n` +
+    `自动压缩阈值 ${formatTokenCount(autoCompact)}，模型窗口 ${formatTokenCount(contextWindow)}`;
+  assistantContextRing.setAttribute(
+    "aria-label",
+    `Context usage ${pct}% (${formatTokenCount(tokens)} of ${formatTokenCount(autoCompact)} tokens before auto-compact; ${formatTokenCount(contextWindow)} total window; ${sourceLabel}).`,
+  );
+}
+
 function renderAssistantThread() {
   assistantTimeline?.setAttribute("aria-busy", state.assistant.sending ? "true" : "false");
   workspaceAssistantBody?.setAttribute(
@@ -1488,6 +1561,8 @@ function renderAssistantThread() {
   } else {
     assistantStatus.textContent = WORKSPACE_STATIC_AI_HINT;
   }
+
+  renderAssistantContextRing();
 
   assistantTimeline.scrollTop = assistantTimeline.scrollHeight;
 }
@@ -1758,6 +1833,12 @@ function startNewConversation({ focusInput = true } = {}) {
   state.assistant.error = "";
   state.assistant.contextNodeIds = [];
   state.assistant.isHistoryOpen = false;
+  state.assistant.usage = {
+    tokens: 0,
+    contextWindow: state.assistant.usage.contextWindow,
+    autoCompactLimit: state.assistant.usage.autoCompactLimit,
+    source: "estimate",
+  };
   if (assistantInput) {
     assistantInput.value = "";
   }
@@ -1783,6 +1864,12 @@ function loadConversation(id) {
   state.assistant.error = "";
   state.assistant.contextNodeIds = [];
   state.assistant.isHistoryOpen = false;
+  state.assistant.usage = {
+    tokens: 0,
+    contextWindow: state.assistant.usage.contextWindow,
+    autoCompactLimit: state.assistant.usage.autoCompactLimit,
+    source: "estimate",
+  };
   if (assistantInput) {
     assistantInput.value = "";
   }
@@ -2877,6 +2964,20 @@ async function sendAssistantMessage(rawText) {
         throw new Error("Workspace AI stream ended before any content arrived.");
       }
 
+      const doneUsage = donePayload?.usage;
+      const doneWindow = Number(donePayload?.context_window);
+      const doneAutoCompact = Number(donePayload?.auto_compact_limit);
+      if (doneUsage && (Number(doneUsage.turn_input_tokens) || Number(doneUsage.prompt_tokens))) {
+        const inputT = Number(doneUsage.turn_input_tokens) || Number(doneUsage.prompt_tokens) || 0;
+        const outputT = Number(doneUsage.turn_output_tokens) || Number(doneUsage.completion_tokens) || 0;
+        state.assistant.usage = {
+          tokens: inputT + outputT,
+          contextWindow: Number.isFinite(doneWindow) && doneWindow > 0 ? doneWindow : state.assistant.usage.contextWindow,
+          autoCompactLimit: Number.isFinite(doneAutoCompact) && doneAutoCompact > 0 ? doneAutoCompact : state.assistant.usage.autoCompactLimit,
+          source: "server",
+        };
+      }
+
       finalizePendingAssistantMessage(state.assistant.messages);
       const applied = applyWorkspaceAssistantOperations(donePayload?.operations);
       if (applied.length > 0) {
@@ -2889,6 +2990,19 @@ async function sendAssistantMessage(rawText) {
     } else {
       const payload = await response.json().catch(() => ({}));
       state.assistant.backendReady = true;
+      const payloadUsage = payload?.usage;
+      const payloadWindow = Number(payload?.context_window);
+      const payloadAutoCompact = Number(payload?.auto_compact_limit);
+      if (payloadUsage && (Number(payloadUsage.turn_input_tokens) || Number(payloadUsage.prompt_tokens))) {
+        const inputT = Number(payloadUsage.turn_input_tokens) || Number(payloadUsage.prompt_tokens) || 0;
+        const outputT = Number(payloadUsage.turn_output_tokens) || Number(payloadUsage.completion_tokens) || 0;
+        state.assistant.usage = {
+          tokens: inputT + outputT,
+          contextWindow: Number.isFinite(payloadWindow) && payloadWindow > 0 ? payloadWindow : state.assistant.usage.contextWindow,
+          autoCompactLimit: Number.isFinite(payloadAutoCompact) && payloadAutoCompact > 0 ? payloadAutoCompact : state.assistant.usage.autoCompactLimit,
+          source: "server",
+        };
+      }
       const applied = applyWorkspaceAssistantOperations(payload.operations);
       const suffix =
         applied.length > 0 ? `\n\nApplied ${applied.length} canvas change${applied.length > 1 ? "s" : ""}.` : "";

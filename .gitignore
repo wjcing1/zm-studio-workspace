@@ -13,6 +13,8 @@ output/
 .data/
 .tmp/
 
+docs/
+
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
